@@ -1,68 +1,228 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Archive, ArrowRight, BarChart3, BookOpen, Check, CheckCircle2, CircleHelp, ClipboardList, Copy, Database, FileText, Gauge, LayoutDashboard, Pause, Pencil, Play, Plus, Printer, RefreshCw, Search, Settings2, ShieldCheck, Sparkles, Target, TimerReset, Trash2, TrendingUp, Users } from 'lucide-react';
+import {
+  AlertTriangle, Archive, ArrowRight, BarChart3, BookOpen, Check, CheckCircle2,
+  CircleHelp, ClipboardList, Copy, Database, FileText, Gauge, LayoutDashboard,
+  Pause, Pencil, Play, Plus, Printer, RefreshCw, Search, Settings2, ShieldCheck,
+  Sparkles, Target, TimerReset, Trash2, TrendingUp, Users,
+} from 'lucide-react';
 import { Link, Route, Switch, useLocation, useParams } from 'wouter';
 import { ErrorBoundary } from '@/components/error-boundary';
 import NotFound from '@/pages/not-found';
-import { getGetRoundQueryKey, getGetTeamQueryKey, getListMembersQueryKey, getListRoundsQueryKey, useArchiveRound, useCreateMember, useCreateRound, useDeleteMember, useDuplicateRound, useGetAnalytics, useGetDashboard, useGetRound, useGetTeam, useHealthCheck, useListMembers, useListMissions, useListRounds, useUpdateMember, useUpdateRound, useUpdateTeam } from '@workspace/api-client-react';
+import {
+  getGetRoundQueryKey, getGetTeamQueryKey, getListMembersQueryKey, getListRoundsQueryKey,
+  useArchiveRound, useCreateMember, useCreateRound, useDeleteMember, useDuplicateRound,
+  useGetAnalytics, useGetDashboard, useGetRound, useGetTeam, useHealthCheck,
+  useListMembers, useListMissions, useListRounds, useUpdateMember, useUpdateRound,
+  useUpdateTeam,
+} from '@workspace/api-client-react';
 
 const logoSrc = '/.local/conversation-workspace/files/attached_assets/77248700-98d3-11f1-935b-7db94e674134_1788022027301.jpg';
-const qc = new QueryClient();
+const queryClient = new QueryClient();
+
 const nav = [
-  { href: '/', label: 'Overview', icon: LayoutDashboard },
-  { href: '/rounds/new', label: 'Capture round', icon: TimerReset },
-  { href: '/rounds', label: 'Round history', icon: ClipboardList },
-  { href: '/analytics', label: 'Evolution', icon: TrendingUp },
-  { href: '/missions', label: 'Missions', icon: Target },
+  { href: '/', label: 'Visão geral', icon: LayoutDashboard },
+  { href: '/rounds/new', label: 'Registrar round', icon: TimerReset },
+  { href: '/rounds', label: 'Histórico de rounds', icon: ClipboardList },
+  { href: '/analytics', label: 'Evolução', icon: TrendingUp },
+  { href: '/missions', label: 'Missões', icon: Target },
 ];
-const moreNav = [{ href: '/team', label: 'Team', icon: Users }, { href: '/settings', label: 'Settings', icon: Settings2 }];
+const moreNav = [
+  { href: '/team', label: 'Equipe', icon: Users },
+  { href: '/settings', label: 'Configurações', icon: Settings2 },
+];
+
+const roundTypeLabels: Record<string, string> = {
+  training: 'Treino',
+  simulation: 'Simulação',
+  official: 'Oficial',
+};
+const statusLabels: Record<string, string> = {
+  saved: 'Salvo',
+  draft: 'Rascunho',
+  archived: 'Arquivado',
+  verified: 'Verificado',
+  pending: 'Pendente',
+  complete: 'Concluída',
+  failed: 'Falhou',
+  partial: 'Parcial',
+  bonus: 'Bônus',
+  not_attempted: 'Não tentada',
+  not_applicable: 'Não se aplica',
+  approved: 'Aprovada',
+  rejected: 'Rejeitada',
+  unregistered: 'Não registrada',
+};
+
+function formatRoundType(value: string) {
+  return roundTypeLabels[value] || value;
+}
+
+function formatStatus(value: string) {
+  return statusLabels[value] || value;
+}
 
 function Shell({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const health = useHealthCheck();
-  return <div className="app-shell">
-    <aside className="sidebar">
-      <Link href="/" className="brand" data-testid="link-brand">
-        <div className="brand-mark"><img src={logoSrc} alt="TechEra" onError={(e) => { e.currentTarget.style.display = 'none'; }} /><span>TE</span></div>
-        <div className="brand-copy"><strong>TechEra</strong><span>BIOGLOW workspace</span></div>
-      </Link>
-      <div className="nav-label">Pit lane</div>
-      <nav className="nav-group">{nav.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={`nav-item ${location === href || (href !== '/' && location.startsWith(href)) ? 'active' : ''}`} data-testid={`link-nav-${label.toLowerCase().replaceAll(' ', '-')}`}><Icon /><span>{label}</span></Link>)}</nav>
-      <div className="nav-label">Workspace</div>
-      <nav className="nav-group">{moreNav.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={`nav-item ${location.startsWith(href) ? 'active' : ''}`} data-testid={`link-nav-${label.toLowerCase()}`}><Icon /><span>{label}</span></Link>)}</nav>
-      <div className="sidebar-foot">Active season<br /><b>BIOGLOW 2026–2027</b><br />Challenge division</div>
-    </aside>
-    <main className="main">
-      <header className="topbar"><div className="crumb"><span>TechEra</span><ArrowRight size={12} /><strong>{nav.concat(moreNav).find((item) => location === item.href || (item.href !== '/' && location.startsWith(item.href)))?.label || 'Round detail'}</strong></div><div className="top-actions"><div className="health"><i />{health.isError ? 'offline' : 'system ready'}</div><Link href="/rounds/new" className="button button-lime" data-testid="button-top-capture"><Plus size={14} />Capture round</Link></div></header>
-      {children}
-    </main>
-  </div>;
+  const currentPage = nav.concat(moreNav).find((item) =>
+    location === item.href || (item.href !== '/' && location.startsWith(item.href)),
+  )?.label || 'Detalhes do round';
+
+  return (
+    <div className="app-shell">
+      <aside className="sidebar">
+        <Link href="/" className="brand" data-testid="link-brand">
+          <div className="brand-mark">
+            <img src={logoSrc} alt="TechEra" onError={(event) => { event.currentTarget.style.display = 'none'; }} />
+            <span>TE</span>
+          </div>
+          <div className="brand-copy">
+            <strong>TechEra</strong>
+            <span>espaço BIOGLOW</span>
+          </div>
+        </Link>
+        <div className="nav-label">Pista</div>
+        <nav className="nav-group">
+          {nav.map(({ href, label, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className={`nav-item ${location === href || (href !== '/' && location.startsWith(href)) ? 'active' : ''}`}
+              data-testid={`link-nav-${href === '/' ? 'overview' : href.slice(1).replaceAll('/', '-')}`}
+            >
+              <Icon /><span>{label}</span>
+            </Link>
+          ))}
+        </nav>
+        <div className="nav-label">Espaço de trabalho</div>
+        <nav className="nav-group">
+          {moreNav.map(({ href, label, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className={`nav-item ${location.startsWith(href) ? 'active' : ''}`}
+              data-testid={`link-nav-${href.slice(1)}`}
+            >
+              <Icon /><span>{label}</span>
+            </Link>
+          ))}
+        </nav>
+        <div className="sidebar-foot">
+          Temporada ativa<br />
+          <b>BIOGLOW 2026–2027</b><br />
+          Divisão Challenge
+        </div>
+      </aside>
+      <main className="main">
+        <header className="topbar">
+          <div className="crumb"><span>TechEra</span><ArrowRight size={12} /><strong>{currentPage}</strong></div>
+          <div className="top-actions">
+            <div className="health"><i />{health.isError ? 'offline' : 'sistema pronto'}</div>
+            <Link href="/rounds/new" className="button button-lime" data-testid="button-top-capture">
+              <Plus size={14} />Registrar round
+            </Link>
+          </div>
+        </header>
+        {children}
+      </main>
+    </div>
+  );
 }
 
-function PageHeading({ eyebrow, title, subtitle, action }: { eyebrow: string; title: string; subtitle?: string; action?: ReactNode }) {
-  return <div className="page-heading"><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1>{subtitle && <p className="subtitle">{subtitle}</p>}</div>{action}</div>;
+function PageHeading({
+  eyebrow, title, subtitle, action,
+}: { eyebrow: string; title: string; subtitle?: string; action?: ReactNode }) {
+  return (
+    <div className="page-heading">
+      <div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1>{subtitle && <p className="subtitle">{subtitle}</p>}</div>
+      {action}
+    </div>
+  );
 }
-function LoadingState() { return <div className="grid card" style={{ padding: 22, gap: 15 }}><div className="skeleton" style={{ width: '35%' }} /><div className="skeleton" style={{ width: '75%', height: 28 }} /><div className="skeleton" /><div className="skeleton" /></div>; }
-function ErrorState({ retry }: { retry?: () => void }) { return <div className="card empty"><AlertTriangle size={26} /><strong>Could not load this view</strong><p>The workspace did not receive a response. Check the connection and try again.</p>{retry && <button className="button button-primary" onClick={retry} data-testid="button-retry"><RefreshCw size={14} />Try again</button>}</div>; }
-function EmptyState({ title, body, action }: { title: string; body: string; action?: ReactNode }) { return <div className="empty"><Sparkles size={26} /><strong>{title}</strong><p>{body}</p>{action}</div>; }
-function Metric({ label, value, detail }: { label: string; value: string | number; detail: string }) { return <div className="card metric" data-testid={`metric-${label.toLowerCase().replaceAll(' ', '-')}`}><div className="label">{label}</div><div className="value">{value}</div><div className="detail">{detail}</div></div>; }
+
+function LoadingState() {
+  return <div className="grid card" style={{ padding: 22, gap: 15 }}><div className="skeleton" style={{ width: '35%' }} /><div className="skeleton" style={{ width: '75%', height: 28 }} /><div className="skeleton" /><div className="skeleton" /></div>;
+}
+
+function ErrorState({ retry }: { retry?: () => void }) {
+  return (
+    <div className="card empty">
+      <AlertTriangle size={26} />
+      <strong>Não foi possível carregar esta tela</strong>
+      <p>O espaço de trabalho não recebeu uma resposta. Verifique a conexão e tente novamente.</p>
+      {retry && <button className="button button-primary" onClick={retry} data-testid="button-retry"><RefreshCw size={14} />Tentar novamente</button>}
+    </div>
+  );
+}
+
+function EmptyState({ title, body, action }: { title: string; body: string; action?: ReactNode }) {
+  return <div className="empty"><Sparkles size={26} /><strong>{title}</strong><p>{body}</p>{action}</div>;
+}
+
+function Metric({ label, value, detail }: { label: string; value: string | number; detail: string }) {
+  return <div className="card metric" data-testid={`metric-${label.toLowerCase().replaceAll(' ', '-')}`}><div className="label">{label}</div><div className="value">{value}</div><div className="detail">{detail}</div></div>;
+}
+
 function RoundRow({ round }: { round: any }) {
-  return <Link href={`/rounds/${round.id}`} className="round-row" data-testid={`row-round-${round.id}`}><div><div className="round-title">{round.event || 'Practice session'} <span style={{ color: 'hsl(var(--muted-foreground))', fontWeight: 500 }}>· {round.type}</span></div><div className="round-meta">{new Date(round.dateTime).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} · {round.members?.map((m: any) => m.nickname || m.name).join(', ') || 'No members logged'}</div></div><div className="score">{round.totalScore ?? 0}</div><span className={`status-chip ${round.status}`}>{round.status}</span></Link>;
+  return (
+    <Link href={`/rounds/${round.id}`} className="round-row" data-testid={`row-round-${round.id}`}>
+      <div>
+        <div className="round-title">{round.event || 'Sessão de treino'} <span style={{ color: 'hsl(var(--muted-foreground))', fontWeight: 500 }}>· {formatRoundType(round.type)}</span></div>
+        <div className="round-meta">
+          {new Date(round.dateTime).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })} · {round.members?.map((member: any) => member.nickname || member.name).join(', ') || 'Nenhum integrante registrado'}
+        </div>
+      </div>
+      <div className="score">{round.totalScore ?? 0}</div>
+      <span className={`status-chip ${round.status}`}>{formatStatus(round.status)}</span>
+    </Link>
+  );
 }
 
 function Overview() {
   const dashboard = useGetDashboard();
   if (dashboard.isLoading) return <div className="content"><LoadingState /></div>;
-  if (dashboard.isError) return <div className="content"><PageHeading eyebrow="BIOGLOW / command view" title="Good to see you." subtitle="Your round intelligence, in one place." /><ErrorState retry={() => dashboard.refetch()} /></div>;
-  const d: any = dashboard.data;
-  const rounds = d?.latestRounds || [];
-  const focus = d?.focusMissions || [];
-   return <div className="content"><PageHeading eyebrow="BIOGLOW / command view" title="Practice with a point of view." subtitle="A clear read on where TechEra is getting stronger — and what to tune next." action={<Link href="/rounds/new" className="button button-primary" data-testid="button-start-round"><Play size={15} />Start a round</Link>} />
-    <div className="grid metrics"><Metric label="Best score" value={d?.bestScore ?? '—'} detail="all recorded rounds" /><Metric label="Recent average" value={d?.recentAverage ?? '—'} detail="latest practice set" /><Metric label="Last score" value={d?.lastScore ?? '—'} detail="most recent result" /><Metric label="Rounds logged" value={d?.totalRounds ?? 0} detail={`${d?.averageTokens ?? '—'} tokens avg remaining`} /></div>
-    <div className="grid two-col"><section className="card"><div className="card-head"><div><h2>Recent rounds</h2><span className="muted">Your latest field reads</span></div><Link href="/rounds" className="link" data-testid="link-all-rounds">View history <ArrowRight size={12} style={{ verticalAlign: 'middle' }} /></Link></div><div className="card-body"><div className="round-list">{rounds.length ? rounds.slice(0, 5).map((r: any) => <RoundRow key={r.id} round={r} />) : <EmptyState title="No rounds yet" body="Capture the first BIOGLOW run and start building your baseline." action={<Link href="/rounds/new" className="button button-primary" data-testid="button-empty-capture">Capture first round</Link>} />}</div></div></section>
-      <section className="card"><div className="card-head"><div><h2>Coach's focus</h2><span className="muted">Highest leverage missions</span></div><Target size={17} color="hsl(var(--primary))" /></div><div className="card-body">{focus.length ? focus.slice(0, 3).map((m: any, i: number) => <div className="focus-item" key={m.missionId}><div className="focus-index">0{i + 1}</div><div><strong>M{m.missionNumber} · {m.missionName}</strong><span>{m.successRate ?? 0}% success · {m.averageScore ?? 0} avg points</span></div></div>) : <EmptyState title="Focus appears here" body="Log a few rounds to reveal the missions worth your next practice block." />}</div></section></div>
-    <div className="grid two-col" style={{ marginTop: 18 }}><section className="card"><div className="card-head"><div><h2>Score pulse</h2><span className="muted">Last five recorded scores</span></div><BarChart3 size={17} color="hsl(var(--primary))" /></div><div className="card-body">{rounds.length ? <div className="bar-chart">{rounds.slice(0, 5).reverse().map((r: any, i: number) => <div className="bar-col" key={r.id}><div className="bar" style={{ height: `${Math.max(8, Math.min(100, (r.totalScore || 0) / 4))}%` }} /><small>{r.totalScore}</small><small>R{i + 1}</small></div>)}</div> : <EmptyState title="Your trend is waiting" body="Scores will become a visual practice pulse as you record rounds." />}</div></section><section className="card"><div className="card-head"><div><h2>Frequent problems</h2><span className="muted">Patterns to name, not blame</span></div><CircleHelp size={17} color="hsl(var(--primary))" /></div><div className="card-body">{d?.frequentProblems?.length ? d.frequentProblems.map((p: string, i: number) => <div className="focus-item" key={p}><div className="focus-index" style={{ background: 'hsl(var(--secondary))', color: 'hsl(var(--primary))' }}>{i + 1}</div><div><strong>{p}</strong><span>appeared across recent rounds</span></div></div>) : <EmptyState title="No recurring problems" body="Keep logging details in your round notes to make patterns visible." />}</div></section></div>
-  </div>;
+  if (dashboard.isError) return <div className="content"><PageHeading eyebrow="BIOGLOW / central de comando" title="Que bom ver você." subtitle="A inteligência dos seus rounds em um só lugar." /><ErrorState retry={() => dashboard.refetch()} /></div>;
+  const data: any = dashboard.data;
+  const rounds = data?.latestRounds || [];
+  const focus = data?.focusMissions || [];
+
+  return (
+    <div className="content">
+      <PageHeading
+        eyebrow="BIOGLOW / central de comando"
+        title="Treine com uma visão clara."
+        subtitle="Uma leitura clara de onde a TechEra está evoluindo — e no que focar em seguida."
+        action={<Link href="/rounds/new" className="button button-primary" data-testid="button-start-round"><Play size={15} />Iniciar um round</Link>}
+      />
+      <div className="grid metrics">
+        <Metric label="Melhor pontuação" value={data?.bestScore ?? '—'} detail="todos os rounds registrados" />
+        <Metric label="Média recente" value={data?.recentAverage ?? '—'} detail="conjunto de treinos mais recente" />
+        <Metric label="Última pontuação" value={data?.lastScore ?? '—'} detail="resultado mais recente" />
+        <Metric label="Rounds registrados" value={data?.totalRounds ?? 0} detail={`${data?.averageTokens ?? '—'} tokens restantes em média`} />
+      </div>
+      <div className="grid two-col">
+        <section className="card">
+          <div className="card-head"><div><h2>Rounds recentes</h2><span className="muted">Seus registros mais recentes em campo</span></div><Link href="/rounds" className="link" data-testid="link-all-rounds">Ver histórico <ArrowRight size={12} style={{ verticalAlign: 'middle' }} /></Link></div>
+          <div className="card-body"><div className="round-list">{rounds.length ? rounds.slice(0, 5).map((round: any) => <RoundRow key={round.id} round={round} />) : <EmptyState title="Nenhum round ainda" body="Registre o primeiro round BIOGLOW e comece a criar sua linha de base." action={<Link href="/rounds/new" className="button button-primary" data-testid="button-empty-capture">Registrar primeiro round</Link>} />}</div></div>
+        </section>
+        <section className="card">
+          <div className="card-head"><div><h2>Foco do treinador</h2><span className="muted">Missões de maior impacto</span></div><Target size={17} color="hsl(var(--primary))" /></div>
+          <div className="card-body">{focus.length ? focus.slice(0, 3).map((mission: any, index: number) => <div className="focus-item" key={mission.missionId}><div className="focus-index">0{index + 1}</div><div><strong>M{mission.missionNumber} · {mission.missionName}</strong><span>{mission.successRate ?? 0}% de sucesso · {mission.averageScore ?? 0} pontos em média</span></div></div>) : <EmptyState title="O foco aparecerá aqui" body="Registre alguns rounds para revelar as missões que merecem o próximo bloco de treino." />}</div>
+        </section>
+      </div>
+      <div className="grid two-col" style={{ marginTop: 18 }}>
+        <section className="card">
+          <div className="card-head"><div><h2>Pulso da pontuação</h2><span className="muted">As últimas cinco pontuações registradas</span></div><BarChart3 size={17} color="hsl(var(--primary))" /></div>
+          <div className="card-body">{rounds.length ? <div className="bar-chart">{rounds.slice(0, 5).reverse().map((round: any, index: number) => <div className="bar-col" key={round.id}><div className="bar" style={{ height: `${Math.max(8, Math.min(100, (round.totalScore || 0) / 4))}%` }} /><small>{round.totalScore}</small><small>R{index + 1}</small></div>)}</div> : <EmptyState title="Sua evolução está esperando" body="As pontuações formarão um pulso visual do treino conforme você registrar rounds." />}</div>
+        </section>
+        <section className="card">
+          <div className="card-head"><div><h2>Problemas frequentes</h2><span className="muted">Padrões para entender, não culpar</span></div><CircleHelp size={17} color="hsl(var(--primary))" /></div>
+          <div className="card-body">{data?.frequentProblems?.length ? data.frequentProblems.map((problem: string, index: number) => <div className="focus-item" key={problem}><div className="focus-index" style={{ background: 'hsl(var(--secondary))', color: 'hsl(var(--primary))' }}>{index + 1}</div><div><strong>{problem}</strong><span>apareceu nos rounds recentes</span></div></div>) : <EmptyState title="Nenhum problema recorrente" body="Continue registrando detalhes nas notas dos rounds para tornar os padrões visíveis." />}</div>
+        </section>
+      </div>
+    </div>
+  );
 }
 
 function NewRound() {
@@ -70,63 +230,217 @@ function NewRound() {
   const missions = useListMissions();
   const members = useListMembers();
   const create = useCreateRound();
-  const [running, setRunning] = useState(false); const [elapsed, setElapsed] = useState(0);
-  const [event, setEvent] = useState('Practice field'); const [roundType, setRoundType] = useState('training'); const [memberIds, setMemberIds] = useState<number[]>([]);
-  const [notes, setNotes] = useState(''); const [results, setResults] = useState<Record<number, any>>({});
-  useEffect(() => { if (!running) return; const id = window.setInterval(() => setElapsed((s) => s + 1), 1000); return () => window.clearInterval(id); }, [running]);
-  const list: any[] = missions.data || []; const mins = String(Math.floor(elapsed / 60)).padStart(2, '0'); const secs = String(elapsed % 60).padStart(2, '0');
-  const setResult = (id: number, patch: any) => setResults((old) => ({ ...old, [id]: { missionId: id, status: 'not_attempted', attempted: false, points: 0, criteria: [], failureType: null, technicalNotes: '', confidence: 'medium', ...old[id], ...patch } }));
-  const attempted = Object.values(results).filter((r: any) => r.attempted).length; const score = Object.values(results).reduce((n: number, r: any) => n + Number(r.points || 0), 0);
-  const save = () => create.mutate({ data: { dateTime: new Date().toISOString(), type: roundType, seasonName: 'BIOGLOW 2026–2027', event, memberIds, plannedDurationSeconds: 150, actualDurationSeconds: elapsed, robotVersion: 'Current build', fieldSetup: '', fieldConditions: '', generalNotes: notes, missionResults: Object.values(results), tokens: { started: 6, remaining: 6, interruptions: 0, notes: '' }, inspection: { status: 'unregistered', points: 0, notes: '' }, officialScore: null, officialScoreNotes: '', status: 'saved' } as any }, { onSuccess: (round: any) => { setLocation(`/rounds/${round.id}`); }, onError: () => window.alert('Round could not be saved. Check the connection and try again.') });
-  return <div className="content"><PageHeading eyebrow="BIOGLOW / field capture" title="Record the run." subtitle="Fast enough for the pit lane. Detailed enough for the next coaching call." action={<button className="button button-primary" onClick={save} disabled={create.isPending} data-testid="button-save-round">{create.isPending ? 'Saving…' : <><Check size={15} />Save round</>}</button>} />
-    <div className="capture-layout"><div className="grid"><section className="card capture-card"><div className="capture-toolbar"><div><div className="eyebrow">Round setup</div><h2>Before launch</h2></div><div className={`timer ${running ? 'live' : ''}`} data-testid="text-round-timer">{mins}:{secs}</div></div><div className="form-grid"><div className="field"><label htmlFor="round-event">Session label</label><input id="round-event" className="input" value={event} onChange={(e) => setEvent(e.target.value)} data-testid="input-round-event" /></div><div className="field"><label htmlFor="round-type">Round type</label><select id="round-type" className="select" value={roundType} onChange={(e) => setRoundType(e.target.value)} data-testid="select-round-type"><option value="training">Training</option><option value="simulation">Simulation</option><option value="official">Official</option></select></div><div className="field full"><label>Team on mat</label><div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>{(members.data || []).filter((m: any) => m.active).map((m: any) => <button type="button" key={m.id} className={`button ${memberIds.includes(m.id) ? 'button-primary' : 'button-ghost'}`} onClick={() => setMemberIds((ids) => ids.includes(m.id) ? ids.filter((id) => id !== m.id) : [...ids, m.id])} data-testid={`button-member-${m.id}`}>{memberIds.includes(m.id) && <Check size={12} />}{m.nickname || m.name}</button>)}</div><small>{memberIds.length ? `${memberIds.length} member${memberIds.length === 1 ? '' : 's'} selected` : 'Select the builders running this session'}</small></div></div></section>
-      <section className="card capture-card"><div className="capture-toolbar"><div><div className="eyebrow">Mission results</div><h2>What happened on field?</h2></div><div style={{ display: 'flex', gap: 7 }}><button className={`button ${running ? 'button-danger' : 'button-lime'}`} onClick={() => setRunning((v) => !v)} data-testid="button-toggle-timer">{running ? <><Pause size={14} />Pause</> : <><Play size={14} />Start timer</>}</button><button className="button button-ghost" onClick={() => { setElapsed(0); setRunning(false); }} data-testid="button-reset-timer"><TimerReset size={14} /></button></div></div><div className="mission-grid">{list.length ? list.map((m: any) => { const r = results[m.id] || {}; const chosen = !!r.attempted; return <div className={`mission-entry ${chosen ? 'selected' : ''}`} key={m.id}><div className="mission-number">{m.number}</div><div><strong>{m.code} · {m.name}</strong><p>{m.description}</p></div><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><input type="number" min="0" max={m.maxPoints || undefined} className="input score-input" placeholder="0" value={r.points ?? ''} onChange={(e) => setResult(m.id, { points: Number(e.target.value), attempted: true, status: 'partial' })} data-testid={`input-mission-score-${m.id}`} /><button className={`button ${chosen ? 'button-primary' : 'button-ghost'}`} style={{ padding: 8 }} onClick={() => setResult(m.id, { attempted: !chosen, status: !chosen ? 'partial' : 'not_attempted' })} data-testid={`button-mission-attempt-${m.id}`}>{chosen ? <Check size={14} /> : <Plus size={14} />}</button></div></div>; }) : <EmptyState title="Mission catalog unavailable" body="Mission configuration is still loading or could not be reached." />}</div></section>
-      <section className="card capture-card"><div className="field"><label htmlFor="round-notes">Round notes</label><textarea id="round-notes" className="textarea" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="One useful observation for the next run…" data-testid="textarea-round-notes" /></div></section></div>
-      <aside className="grid side-sticky"><div className="summary-total"><div className="eyebrow">Live estimate</div><div className="total" data-testid="text-live-score">{score}</div><span>estimated points · BIOGLOW 2026–2027</span></div><div className="card" style={{ padding: 20 }}><div className="card-head" style={{ padding: 0, marginBottom: 14 }}><h3>Run pulse</h3><Gauge size={17} color="hsl(var(--primary))" /></div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Attempted</strong><p>missions logged</p></div><b>{attempted}/15</b></div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Field time</strong><p>target 02:30</p></div><b>{mins}:{secs}</b></div><div className="setting-row" style={{ padding: '12px 0 0' }}><div><strong>Tokens</strong><p>available at start</p></div><b>6</b></div></div><div className="notice"><CircleHelp size={15} />Score details can be enriched from the round detail view after saving.</div></aside></div>
-  </div>;
+  const [running, setRunning] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const [event, setEvent] = useState('Campo de treino');
+  const [roundType, setRoundType] = useState('training');
+  const [memberIds, setMemberIds] = useState<number[]>([]);
+  const [notes, setNotes] = useState('');
+  const [results, setResults] = useState<Record<number, any>>({});
+  useEffect(() => {
+    if (!running) return;
+    const timer = window.setInterval(() => setElapsed((seconds) => seconds + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [running]);
+  const list: any[] = missions.data || [];
+  const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
+  const secs = String(elapsed % 60).padStart(2, '0');
+  const setResult = (id: number, patch: any) => setResults((old) => ({
+    ...old,
+    [id]: { missionId: id, status: 'not_attempted', attempted: false, points: 0, criteria: [], failureType: null, technicalNotes: '', confidence: 'medium', ...old[id], ...patch },
+  }));
+  const attempted = Object.values(results).filter((result: any) => result.attempted).length;
+  const score = Object.values(results).reduce((total: number, result: any) => total + Number(result.points || 0), 0);
+  const save = () => create.mutate({
+    data: {
+      dateTime: new Date().toISOString(), type: roundType, seasonName: 'BIOGLOW 2026–2027', event, memberIds,
+      plannedDurationSeconds: 150, actualDurationSeconds: elapsed, robotVersion: 'Versão atual',
+      fieldSetup: '', fieldConditions: '', generalNotes: notes, missionResults: Object.values(results),
+      tokens: { started: 6, remaining: 6, interruptions: 0, notes: '' },
+      inspection: { status: 'unregistered', points: 0, notes: '' }, officialScore: null,
+      officialScoreNotes: '', status: 'saved',
+    } as any,
+  }, {
+    onSuccess: (round: any) => setLocation(`/rounds/${round.id}`),
+    onError: () => window.alert('Não foi possível salvar o round. Verifique a conexão e tente novamente.'),
+  });
+
+  return (
+    <div className="content">
+      <PageHeading eyebrow="BIOGLOW / registro em campo" title="Registre a execução." subtitle="Rápido o suficiente para o box. Detalhado o suficiente para a próxima conversa do treinador." action={<button className="button button-primary" onClick={save} disabled={create.isPending} data-testid="button-save-round">{create.isPending ? 'Salvando…' : <><Check size={15} />Salvar round</>}</button>} />
+      <div className="capture-layout">
+        <div className="grid">
+          <section className="card capture-card">
+            <div className="capture-toolbar"><div><div className="eyebrow">Configuração do round</div><h2>Antes do lançamento</h2></div><div className={`timer ${running ? 'live' : ''}`} data-testid="text-round-timer">{mins}:{secs}</div></div>
+            <div className="form-grid">
+              <div className="field"><label htmlFor="round-event">Nome da sessão</label><input id="round-event" className="input" value={event} onChange={(inputEvent) => setEvent(inputEvent.target.value)} data-testid="input-round-event" /></div>
+              <div className="field"><label htmlFor="round-type">Tipo de round</label><select id="round-type" className="select" value={roundType} onChange={(selectEvent) => setRoundType(selectEvent.target.value)} data-testid="select-round-type"><option value="training">Treino</option><option value="simulation">Simulação</option><option value="official">Oficial</option></select></div>
+              <div className="field full"><label>Equipe na mesa</label><div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>{(members.data || []).filter((member: any) => member.active).map((member: any) => <button type="button" key={member.id} className={`button ${memberIds.includes(member.id) ? 'button-primary' : 'button-ghost'}`} onClick={() => setMemberIds((ids) => ids.includes(member.id) ? ids.filter((id) => id !== member.id) : [...ids, member.id])} data-testid={`button-member-${member.id}`}>{memberIds.includes(member.id) && <Check size={12} />}{member.nickname || member.name}</button>)}</div><small>{memberIds.length ? `${memberIds.length} integrante${memberIds.length === 1 ? '' : 's'} selecionado${memberIds.length === 1 ? '' : 's'}` : 'Selecione quem está executando esta sessão'}</small></div>
+            </div>
+          </section>
+          <section className="card capture-card">
+            <div className="capture-toolbar"><div><div className="eyebrow">Resultados das missões</div><h2>O que aconteceu em campo?</h2></div><div style={{ display: 'flex', gap: 7 }}><button className={`button ${running ? 'button-danger' : 'button-lime'}`} onClick={() => setRunning((value) => !value)} data-testid="button-toggle-timer">{running ? <><Pause size={14} />Pausar</> : <><Play size={14} />Iniciar cronômetro</>}</button><button className="button button-ghost" onClick={() => { setElapsed(0); setRunning(false); }} data-testid="button-reset-timer"><TimerReset size={14} /></button></div></div>
+            <div className="mission-grid">{list.length ? list.map((mission: any) => { const result = results[mission.id] || {}; const chosen = !!result.attempted; return <div className={`mission-entry ${chosen ? 'selected' : ''}`} key={mission.id}><div className="mission-number">{mission.number}</div><div><strong>{mission.code} · {mission.name}</strong><p>{mission.description}</p></div><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><input type="number" min="0" max={mission.maxPoints || undefined} className="input score-input" placeholder="0" value={result.points ?? ''} onChange={(inputEvent) => setResult(mission.id, { points: Number(inputEvent.target.value), attempted: true, status: 'partial' })} data-testid={`input-mission-score-${mission.id}`} /><button className={`button ${chosen ? 'button-primary' : 'button-ghost'}`} style={{ padding: 8 }} onClick={() => setResult(mission.id, { attempted: !chosen, status: !chosen ? 'partial' : 'not_attempted' })} data-testid={`button-mission-attempt-${mission.id}`}>{chosen ? <Check size={14} /> : <Plus size={14} />}</button></div></div>; }) : <EmptyState title="Catálogo de missões indisponível" body="A configuração das missões ainda está carregando ou não pôde ser acessada." />}</div>
+          </section>
+          <section className="card capture-card"><div className="field"><label htmlFor="round-notes">Notas do round</label><textarea id="round-notes" className="textarea" value={notes} onChange={(inputEvent) => setNotes(inputEvent.target.value)} placeholder="Uma observação útil para o próximo round…" data-testid="textarea-round-notes" /></div></section>
+        </div>
+        <aside className="grid side-sticky">
+          <div className="summary-total"><div className="eyebrow">Estimativa ao vivo</div><div className="total" data-testid="text-live-score">{score}</div><span>pontos estimados · BIOGLOW 2026–2027</span></div>
+          <div className="card" style={{ padding: 20 }}><div className="card-head" style={{ padding: 0, marginBottom: 14 }}><h3>Pulso da execução</h3><Gauge size={17} color="hsl(var(--primary))" /></div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Tentadas</strong><p>missões registradas</p></div><b>{attempted}/15</b></div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Tempo em campo</strong><p>meta 02:30</p></div><b>{mins}:{secs}</b></div><div className="setting-row" style={{ padding: '12px 0 0' }}><div><strong>Tokens</strong><p>disponíveis no início</p></div><b>6</b></div></div>
+          <div className="notice"><CircleHelp size={15} />Os detalhes da pontuação podem ser enriquecidos na tela do round depois de salvar.</div>
+        </aside>
+      </div>
+    </div>
+  );
 }
 
 function Rounds() {
-  const qc2 = useQueryClient(); const [, setLocation] = useLocation(); const [search, setSearch] = useState(''); const [type, setType] = useState('all');
+  const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
+  const [search, setSearch] = useState('');
+  const [type, setType] = useState('all');
   const params: any = { search: search || undefined, type: type === 'all' ? undefined : type, sort: 'recent', limit: 100 };
-  const rounds = useListRounds(params); const archive = useArchiveRound(); const duplicate = useDuplicateRound(); const list: any[] = rounds.data || [];
-  const archiveOne = (id: number) => { if (window.confirm('Archive this round? It will leave the active history.')) archive.mutate({ id }, { onSuccess: () => qc2.invalidateQueries({ queryKey: getListRoundsQueryKey(params) }) }); };
-  return <div className="content"><PageHeading eyebrow="BIOGLOW / history" title="Round history." subtitle="The practice record is the coaching record." action={<Link href="/rounds/new" className="button button-primary" data-testid="button-history-new"><Plus size={15} />New round</Link>} /><div className="toolbar"><div style={{ position: 'relative', flex: '1 1 220px', maxWidth: 330 }}><Search size={15} style={{ position: 'absolute', top: 11, left: 11, color: 'hsl(var(--muted-foreground))' }} /><input className="input" style={{ paddingLeft: 33 }} placeholder="Search event or member…" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-round-search" /></div><select className="select" style={{ width: 150 }} value={type} onChange={(e) => setType(e.target.value)} data-testid="select-round-filter"><option value="all">All round types</option><option value="training">Training</option><option value="simulation">Simulation</option><option value="official">Official</option></select><button className="button button-ghost" onClick={() => rounds.refetch()} data-testid="button-refresh-rounds"><RefreshCw size={14} />Refresh</button></div><div className="card table-wrap">{rounds.isLoading ? <div style={{ padding: 22 }}><LoadingState /></div> : rounds.isError ? <ErrorState retry={() => rounds.refetch()} /> : list.length ? <table><thead><tr><th>Session</th><th>Type</th><th>Date</th><th>Score</th><th>Coverage</th><th>Status</th><th aria-label="Actions" /></tr></thead><tbody>{list.map((r: any) => <tr key={r.id}><td><Link href={`/rounds/${r.id}`} className="link" data-testid={`link-round-${r.id}`}>{r.event || 'Practice session'}</Link><div className="round-meta">{r.members?.map((m: any) => m.nickname || m.name).join(', ') || 'No members'}</div></td><td><span className="status-chip">{r.type}</span></td><td>{new Date(r.dateTime).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</td><td><b style={{ color: 'hsl(var(--primary))' }}>{r.totalScore ?? 0}</b></td><td>{r.attemptedMissions ?? 0}/15</td><td><span className={`status-chip ${r.status}`}>{r.status}</span></td><td><div style={{ display: 'flex', gap: 5 }}><Link href={`/rounds/${r.id}?edit=1`} className="button button-ghost" style={{ padding: 7 }} data-testid={`button-edit-round-${r.id}`}><Pencil size={13} /></Link><button className="button button-ghost" style={{ padding: 7 }} onClick={() => duplicate.mutate({ id: r.id }, { onSuccess: (copy: any) => setLocation(`/rounds/${copy.id}`) })} data-testid={`button-duplicate-round-${r.id}`}><Copy size={13} /></button><button className="button button-danger" style={{ padding: 7 }} onClick={() => archiveOne(r.id)} data-testid={`button-archive-round-${r.id}`}><Archive size={13} /></button></div></td></tr>)}</tbody></table> : <EmptyState title="No matching rounds" body={search ? 'Try a different search phrase or clear the filter.' : 'Capture your first round to turn field time into a useful record.'} action={!search ? <Link href="/rounds/new" className="button button-primary" data-testid="button-empty-history">Capture a round</Link> : undefined} />}</div></div>;
+  const rounds = useListRounds(params);
+  const archive = useArchiveRound();
+  const duplicate = useDuplicateRound();
+  const list: any[] = rounds.data || [];
+  const archiveOne = (id: number) => {
+    if (window.confirm('Arquivar este round? Ele sairá do histórico ativo.')) {
+      archive.mutate({ id }, { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListRoundsQueryKey(params) }) });
+    }
+  };
+
+  return (
+    <div className="content">
+      <PageHeading eyebrow="BIOGLOW / histórico" title="Histórico de rounds." subtitle="O registro de treino é o registro do coaching." action={<Link href="/rounds/new" className="button button-primary" data-testid="button-history-new"><Plus size={15} />Novo round</Link>} />
+      <div className="toolbar"><div style={{ position: 'relative', flex: '1 1 220px', maxWidth: 330 }}><Search size={15} style={{ position: 'absolute', top: 11, left: 11, color: 'hsl(var(--muted-foreground))' }} /><input className="input" style={{ paddingLeft: 33 }} placeholder="Buscar sessão ou integrante…" value={search} onChange={(event) => setSearch(event.target.value)} data-testid="input-round-search" /></div><select className="select" style={{ width: 150 }} value={type} onChange={(event) => setType(event.target.value)} data-testid="select-round-filter"><option value="all">Todos os tipos</option><option value="training">Treino</option><option value="simulation">Simulação</option><option value="official">Oficial</option></select><button className="button button-ghost" onClick={() => rounds.refetch()} data-testid="button-refresh-rounds"><RefreshCw size={14} />Atualizar</button></div>
+      <div className="card table-wrap">{rounds.isLoading ? <div style={{ padding: 22 }}><LoadingState /></div> : rounds.isError ? <ErrorState retry={() => rounds.refetch()} /> : list.length ? <table><thead><tr><th>Sessão</th><th>Tipo</th><th>Data</th><th>Pontuação</th><th>Cobertura</th><th>Status</th><th aria-label="Ações" /></tr></thead><tbody>{list.map((round: any) => <tr key={round.id}><td><Link href={`/rounds/${round.id}`} className="link" data-testid={`link-round-${round.id}`}>{round.event || 'Sessão de treino'}</Link><div className="round-meta">{round.members?.map((member: any) => member.nickname || member.name).join(', ') || 'Nenhum integrante'}</div></td><td><span className="status-chip">{formatRoundType(round.type)}</span></td><td>{new Date(round.dateTime).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</td><td><b style={{ color: 'hsl(var(--primary))' }}>{round.totalScore ?? 0}</b></td><td>{round.attemptedMissions ?? 0}/15</td><td><span className={`status-chip ${round.status}`}>{formatStatus(round.status)}</span></td><td><div style={{ display: 'flex', gap: 5 }}><Link href={`/rounds/${round.id}?edit=1`} className="button button-ghost" style={{ padding: 7 }} data-testid={`button-edit-round-${round.id}`}><Pencil size={13} /></Link><button className="button button-ghost" style={{ padding: 7 }} onClick={() => duplicate.mutate({ id: round.id }, { onSuccess: (copy: any) => setLocation(`/rounds/${copy.id}`) })} data-testid={`button-duplicate-round-${round.id}`}><Copy size={13} /></button><button className="button button-danger" style={{ padding: 7 }} onClick={() => archiveOne(round.id)} data-testid={`button-archive-round-${round.id}`}><Archive size={13} /></button></div></td></tr>)}</tbody></table> : <EmptyState title="Nenhum round encontrado" body={search ? 'Tente outra busca ou limpe o filtro.' : 'Registre seu primeiro round para transformar o tempo em campo em um histórico útil.'} action={!search ? <Link href="/rounds/new" className="button button-primary" data-testid="button-empty-history">Registrar um round</Link> : undefined} />}</div>
+    </div>
+  );
 }
 
 function RoundDetail() {
-  const params = useParams<{ id: string }>(); const id = Number(params.id); const detail = useGetRound(id); const qc2 = useQueryClient(); const update = useUpdateRound(); const [editing, setEditing] = useState(() => new URLSearchParams(window.location.search).get('edit') === '1'); const [notes, setNotes] = useState('');
+  const params = useParams<{ id: string }>();
+  const id = Number(params.id);
+  const detail = useGetRound(id);
+  const queryClient = useQueryClient();
+  const update = useUpdateRound();
+  const [editing, setEditing] = useState(() => new URLSearchParams(window.location.search).get('edit') === '1');
+  const [notes, setNotes] = useState('');
   useEffect(() => { if (detail.data) setNotes((detail.data as any).generalNotes || ''); }, [detail.data]);
-  if (detail.isLoading) return <div className="content"><LoadingState /></div>; if (detail.isError || !detail.data) return <div className="content"><ErrorState retry={() => detail.refetch()} /></div>;
-  const r: any = detail.data; const results: any[] = r.missionResults || [];
-  const saveNotes = () => update.mutate({ id, data: { generalNotes: notes } as any }, { onSuccess: (next: any) => { qc2.setQueryData(getGetRoundQueryKey(id), next); setEditing(false); } });
-  return <div className="content"><PageHeading eyebrow={`BIOGLOW / ${r.type}`} title={r.event || 'Practice session'} subtitle={`${new Date(r.dateTime).toLocaleString('en-GB', { dateStyle: 'full', timeStyle: 'short' })} · Robot ${r.robotVersion || '—'}`} action={<div className="no-print" style={{ display: 'flex', gap: 8 }}><button className="button button-ghost" onClick={() => window.print()} data-testid="button-print-round"><Printer size={14} />Print summary</button><button className="button button-primary" onClick={() => setEditing((v) => !v)} data-testid="button-edit-detail"><Pencil size={14} />{editing ? 'Close edit' : 'Edit round'}</button></div>} /><div className="grid two-col"><div className="grid"><section className="card" style={{ padding: 24 }}><div className="eyebrow">Round result</div><div className="detail-score"><b data-testid="text-round-total-score">{r.totalScore ?? 0}</b><span>points total</span></div><div style={{ display: 'flex', gap: 12, marginTop: 13, flexWrap: 'wrap' }}><span className="status-chip">{r.attemptedMissions ?? 0} missions attempted</span><span className="status-chip">{r.problemsCount ?? 0} problems noted</span><span className={`status-chip ${r.status}`}>{r.status}</span></div></section><section className="card"><div className="card-head"><div><h2>Mission readout</h2><span className="muted">Recorded outcomes from the mat</span></div><Target size={17} color="hsl(var(--primary))" /></div><div className="card-body"><div className="round-list">{results.length ? results.map((m: any) => <div className="round-row" key={m.missionId}><div><div className="round-title">Mission {m.missionId}</div><div className="round-meta">{m.technicalNotes || 'No technical note recorded'}</div></div><div className="score">{m.points ?? 0}</div><span className={`status-chip ${m.status === 'complete' || m.status === 'bonus' ? 'complete' : m.status === 'not_attempted' ? '' : 'pending'}`}>{m.status?.replaceAll('_', ' ')}</span></div>) : <EmptyState title="No mission details" body="This round was saved without individual mission results." />}</div></div></section></div><aside className="grid"><div className="card" style={{ padding: 21 }}><div className="card-head" style={{ padding: 0, marginBottom: 14 }}><h3>Round notes</h3><FileText size={16} color="hsl(var(--primary))" /></div>{editing ? <><textarea className="textarea" value={notes} onChange={(e) => setNotes(e.target.value)} data-testid="textarea-edit-round-notes" /><button className="button button-primary" style={{ marginTop: 10 }} onClick={saveNotes} disabled={update.isPending} data-testid="button-save-round-notes">{update.isPending ? 'Saving…' : 'Save notes'}</button></> : <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12, lineHeight: 1.7 }}>{r.generalNotes || 'No notes added to this round.'}</p>}</div><div className="card" style={{ padding: 21 }}><div className="eyebrow">Field conditions</div><div className="setting-row"><div><strong>Setup</strong><p>{r.fieldSetup || 'Not recorded'}</p></div></div><div className="setting-row"><div><strong>Conditions</strong><p>{r.fieldConditions || 'Not recorded'}</p></div></div><div className="setting-row"><div><strong>Tokens remaining</strong><p>at end of round</p></div><b>{r.tokens?.remaining ?? '—'}</b></div></div></aside></div><div className="print-only"><h1>TechEra · BIOGLOW 2026–2027</h1><p>Round summary · {r.event || 'Practice session'} · {r.totalScore ?? 0} points</p></div></div>;
+  if (detail.isLoading) return <div className="content"><LoadingState /></div>;
+  if (detail.isError || !detail.data) return <div className="content"><ErrorState retry={() => detail.refetch()} /></div>;
+  const round: any = detail.data;
+  const results: any[] = round.missionResults || [];
+  const saveNotes = () => update.mutate({ id, data: { generalNotes: notes } as any }, { onSuccess: (next: any) => { queryClient.setQueryData(getGetRoundQueryKey(id), next); setEditing(false); } });
+
+  return (
+    <div className="content">
+      <PageHeading eyebrow={`BIOGLOW / ${formatRoundType(round.type)}`} title={round.event || 'Sessão de treino'} subtitle={`${new Date(round.dateTime).toLocaleString('pt-BR', { dateStyle: 'full', timeStyle: 'short' })} · Robô ${round.robotVersion || '—'}`} action={<div className="no-print" style={{ display: 'flex', gap: 8 }}><button className="button button-ghost" onClick={() => window.print()} data-testid="button-print-round"><Printer size={14} />Imprimir resumo</button><button className="button button-primary" onClick={() => setEditing((value) => !value)} data-testid="button-edit-detail"><Pencil size={14} />{editing ? 'Fechar edição' : 'Editar round'}</button></div>} />
+      <div className="grid two-col">
+        <div className="grid">
+          <section className="card" style={{ padding: 24 }}><div className="eyebrow">Resultado do round</div><div className="detail-score"><b data-testid="text-round-total-score">{round.totalScore ?? 0}</b><span>pontos no total</span></div><div style={{ display: 'flex', gap: 12, marginTop: 13, flexWrap: 'wrap' }}><span className="status-chip">{round.attemptedMissions ?? 0} missões tentadas</span><span className="status-chip">{round.problemsCount ?? 0} problemas registrados</span><span className={`status-chip ${round.status}`}>{formatStatus(round.status)}</span></div></section>
+          <section className="card"><div className="card-head"><div><h2>Leitura das missões</h2><span className="muted">Resultados registrados na mesa</span></div><Target size={17} color="hsl(var(--primary))" /></div><div className="card-body"><div className="round-list">{results.length ? results.map((mission: any) => <div className="round-row" key={mission.missionId}><div><div className="round-title">Missão {mission.missionId}</div><div className="round-meta">{mission.technicalNotes || 'Nenhuma nota técnica registrada'}</div></div><div className="score">{mission.points ?? 0}</div><span className={`status-chip ${mission.status === 'complete' || mission.status === 'bonus' ? 'complete' : mission.status === 'not_attempted' ? '' : 'pending'}`}>{formatStatus(mission.status)}</span></div>) : <EmptyState title="Nenhum detalhe de missão" body="Este round foi salvo sem resultados individuais das missões." />}</div></div></section>
+        </div>
+        <aside className="grid">
+          <div className="card" style={{ padding: 21 }}><div className="card-head" style={{ padding: 0, marginBottom: 14 }}><h3>Notas do round</h3><FileText size={16} color="hsl(var(--primary))" /></div>{editing ? <><textarea className="textarea" value={notes} onChange={(event) => setNotes(event.target.value)} data-testid="textarea-edit-round-notes" /><button className="button button-primary" style={{ marginTop: 10 }} onClick={saveNotes} disabled={update.isPending} data-testid="button-save-round-notes">{update.isPending ? 'Salvando…' : 'Salvar notas'}</button></> : <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12, lineHeight: 1.7 }}>{round.generalNotes || 'Nenhuma nota adicionada a este round.'}</p>}</div>
+          <div className="card" style={{ padding: 21 }}><div className="eyebrow">Condições de campo</div><div className="setting-row"><div><strong>Montagem</strong><p>{round.fieldSetup || 'Não registrada'}</p></div></div><div className="setting-row"><div><strong>Condições</strong><p>{round.fieldConditions || 'Não registradas'}</p></div></div><div className="setting-row"><div><strong>Tokens restantes</strong><p>ao fim do round</p></div><b>{round.tokens?.remaining ?? '—'}</b></div></div>
+        </aside>
+      </div>
+      <div className="print-only"><h1>TechEra · BIOGLOW 2026–2027</h1><p>Resumo do round · {round.event || 'Sessão de treino'} · {round.totalScore ?? 0} pontos</p></div>
+    </div>
+  );
 }
 
 function AnalyticsPage() {
-  const analytics = useGetAnalytics(); if (analytics.isLoading) return <div className="content"><LoadingState /></div>; if (analytics.isError) return <div className="content"><ErrorState retry={() => analytics.refetch()} /></div>;
-  const a: any = analytics.data; const trend: any[] = a?.scoreTrend || []; const metrics: any[] = a?.missionMetrics || []; const max = Math.max(...trend.map((x) => x.score), 1);
-  return <div className="content"><PageHeading eyebrow="BIOGLOW / evolution" title="See the practice becoming." subtitle="Use the evidence to choose the next block of work." action={<Link href="/rounds/new" className="button button-primary" data-testid="button-analytics-capture"><Plus size={15} />Log another round</Link>} /><div className="grid two-col"><section className="card"><div className="card-head"><div><h2>Score evolution</h2><span className="muted">Every recorded round</span></div><TrendingUp size={17} color="hsl(var(--primary))" /></div><div className="card-body">{trend.length ? <div className="bar-chart" style={{ height: 255 }}>{trend.map((x, i) => <div className="bar-col" key={`${x.date}-${i}`}><small>{x.score}</small><div className="bar" style={{ height: `${Math.max(8, x.score / max * 82)}%`, background: i % 2 ? 'hsl(var(--accent))' : 'hsl(var(--primary))' }} /><small>{new Date(x.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</small></div>)}</div> : <EmptyState title="No evolution curve yet" body="Record multiple rounds to see how field practice is changing the score." />}</div></section><section className="card"><div className="card-head"><div><h2>Problem history</h2><span className="muted">What keeps showing up</span></div><AlertTriangle size={17} color="hsl(var(--primary))" /></div><div className="card-body">{a?.problemHistory?.length ? a.problemHistory.map((p: any) => <div className="focus-item" key={p.label}><div className="focus-index" style={{ background: 'hsl(33 92% 61%/.2)', color: 'hsl(28 65% 31%)' }}>{p.count}</div><div><strong>{p.label}</strong><span>recorded occurrences</span></div></div>) : <EmptyState title="No problem patterns" body="Specific field notes turn into patterns here." />}</div></section></div><section className="card" style={{ marginTop: 18 }}><div className="card-head"><div><h2>Mission focus map</h2><span className="muted">Best, average and reliability by mission</span></div><Target size={17} color="hsl(var(--primary))" /></div><div className="table-wrap"><table><thead><tr><th>Mission</th><th>Best</th><th>Average</th><th>Success</th><th>Attempts</th><th>Priority</th></tr></thead><tbody>{metrics.length ? metrics.map((m: any) => <tr key={m.missionId}><td><b>M{m.missionNumber}</b> · {m.missionName}</td><td>{m.bestScore}</td><td>{m.averageScore}</td><td>{m.successRate}%</td><td>{m.attempts}</td><td><span className={`status-chip ${m.priority === 'high' ? 'pending' : 'saved'}`}>{m.priority}</span></td></tr>) : <tr><td colSpan={6}><EmptyState title="Metrics arrive after round one" body="Mission-level performance becomes useful once the team has a few results to compare." /></td></tr>}</tbody></table></div></section></div>;
+  const analytics = useGetAnalytics();
+  if (analytics.isLoading) return <div className="content"><LoadingState /></div>;
+  if (analytics.isError) return <div className="content"><ErrorState retry={() => analytics.refetch()} /></div>;
+  const data: any = analytics.data;
+  const trend: any[] = data?.scoreTrend || [];
+  const metrics: any[] = data?.missionMetrics || [];
+  const max = Math.max(...trend.map((item) => item.score), 1);
+
+  return (
+    <div className="content">
+      <PageHeading eyebrow="BIOGLOW / evolução" title="Veja o treino evoluir." subtitle="Use os dados para escolher o próximo bloco de trabalho." action={<Link href="/rounds/new" className="button button-primary" data-testid="button-analytics-capture"><Plus size={15} />Registrar outro round</Link>} />
+      <div className="grid two-col">
+        <section className="card"><div className="card-head"><div><h2>Evolução da pontuação</h2><span className="muted">Todos os rounds registrados</span></div><TrendingUp size={17} color="hsl(var(--primary))" /></div><div className="card-body">{trend.length ? <div className="bar-chart" style={{ height: 255 }}>{trend.map((item, index) => <div className="bar-col" key={`${item.date}-${index}`}><small>{item.score}</small><div className="bar" style={{ height: `${Math.max(8, item.score / max * 82)}%`, background: index % 2 ? 'hsl(var(--accent))' : 'hsl(var(--primary))' }} /><small>{new Date(item.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</small></div>)}</div> : <EmptyState title="Ainda não há curva de evolução" body="Registre vários rounds para ver como o treino está mudando a pontuação." />}</div></section>
+        <section className="card"><div className="card-head"><div><h2>Histórico de problemas</h2><span className="muted">O que continua aparecendo</span></div><AlertTriangle size={17} color="hsl(var(--primary))" /></div><div className="card-body">{data?.problemHistory?.length ? data.problemHistory.map((problem: any) => <div className="focus-item" key={problem.label}><div className="focus-index" style={{ background: 'hsl(33 92% 61%/.2)', color: 'hsl(28 65% 31%)' }}>{problem.count}</div><div><strong>{problem.label}</strong><span>ocorrências registradas</span></div></div>) : <EmptyState title="Nenhum padrão de problema" body="Notas específicas de campo se transformam em padrões aqui." />}</div></section>
+      </div>
+      <section className="card" style={{ marginTop: 18 }}><div className="card-head"><div><h2>Mapa de foco das missões</h2><span className="muted">Melhor, média e consistência por missão</span></div><Target size={17} color="hsl(var(--primary))" /></div><div className="table-wrap"><table><thead><tr><th>Missão</th><th>Melhor</th><th>Média</th><th>Sucesso</th><th>Tentativas</th><th>Prioridade</th></tr></thead><tbody>{metrics.length ? metrics.map((mission: any) => <tr key={mission.missionId}><td><b>M{mission.missionNumber}</b> · {mission.missionName}</td><td>{mission.bestScore}</td><td>{mission.averageScore}</td><td>{mission.successRate}%</td><td>{mission.attempts}</td><td><span className={`status-chip ${mission.priority === 'high' ? 'pending' : 'saved'}`}>{mission.priority === 'high' ? 'Alta' : mission.priority === 'medium' ? 'Média' : 'Baixa'}</span></td></tr>) : <tr><td colSpan={6}><EmptyState title="As métricas aparecem após o primeiro round" body="O desempenho por missão se torna útil quando a equipe tem alguns resultados para comparar." /></td></tr>}</tbody></table></div></section>
+    </div>
+  );
 }
 
 function MissionsPage() {
-  const missions = useListMissions(); const [tab, setTab] = useState('all'); const list: any[] = missions.data || []; const shown = list.filter((m) => tab === 'all' || m.scoreConfigStatus === tab);
-  return <div className="content"><PageHeading eyebrow="BIOGLOW / mission catalog" title="Know the missions." subtitle="The single source of truth for BIOGLOW scoring configuration." action={<div className="status-chip verified"><CheckCircle2 size={12} style={{ verticalAlign: 'middle' }} /> {list.filter((m) => m.scoreConfigStatus === 'verified').length} verified</div>} /><div className="toolbar"><div className="tabs"><button className={`tab ${tab === 'all' ? 'active' : ''}`} onClick={() => setTab('all')} data-testid="tab-missions-all">All missions</button><button className={`tab ${tab === 'verified' ? 'active' : ''}`} onClick={() => setTab('verified')} data-testid="tab-missions-verified">Verified</button><button className={`tab ${tab === 'pending' ? 'active' : ''}`} onClick={() => setTab('pending')} data-testid="tab-missions-pending">Needs review</button></div><span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 11 }}>15 BIOGLOW missions · no other seasons</span></div>{missions.isLoading ? <LoadingState /> : missions.isError ? <ErrorState retry={() => missions.refetch()} /> : <div className="mission-catalog">{shown.length ? shown.map((m: any) => <article className="card mission-card" key={m.id} data-testid={`card-mission-${m.id}`}><div className="m-top"><span className="mission-code">M{String(m.number).padStart(2, '0')} / {m.code}</span><span className={`status-chip ${m.scoreConfigStatus}`}>{m.scoreConfigStatus}</span></div><h3>{m.name}</h3><p>{m.description}</p><footer><span>Max {m.maxPoints ?? 'TBD'} pts</span><span title={m.sourceReference}><BookOpen size={13} style={{ verticalAlign: 'middle' }} /> Source linked</span></footer>{m.warning && <div className="notice" style={{ marginTop: 12 }}><AlertTriangle size={14} />{m.warning}</div>}</article>) : <div className="card" style={{ gridColumn: '1/-1' }}><EmptyState title="No missions match this view" body="Try another configuration status." /></div>}</div>}</div>;
+  const missions = useListMissions();
+  const [tab, setTab] = useState('all');
+  const list: any[] = missions.data || [];
+  const shown = list.filter((mission) => tab === 'all' || mission.scoreConfigStatus === tab);
+  return (
+    <div className="content">
+      <PageHeading eyebrow="BIOGLOW / catálogo de missões" title="Conheça as missões." subtitle="A fonte única da configuração de pontuação do BIOGLOW." action={<div className="status-chip verified"><CheckCircle2 size={12} style={{ verticalAlign: 'middle' }} /> {list.filter((mission) => mission.scoreConfigStatus === 'verified').length} verificadas</div>} />
+      <div className="toolbar"><div className="tabs"><button className={`tab ${tab === 'all' ? 'active' : ''}`} onClick={() => setTab('all')} data-testid="tab-missions-all">Todas as missões</button><button className={`tab ${tab === 'verified' ? 'active' : ''}`} onClick={() => setTab('verified')} data-testid="tab-missions-verified">Verificadas</button><button className={`tab ${tab === 'pending' ? 'active' : ''}`} onClick={() => setTab('pending')} data-testid="tab-missions-pending">Precisam de revisão</button></div><span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 11 }}>15 missões BIOGLOW · nenhuma outra temporada</span></div>
+      {missions.isLoading ? <LoadingState /> : missions.isError ? <ErrorState retry={() => missions.refetch()} /> : <div className="mission-catalog">{shown.length ? shown.map((mission: any) => <article className="card mission-card" key={mission.id} data-testid={`card-mission-${mission.id}`}><div className="m-top"><span className="mission-code">M{String(mission.number).padStart(2, '0')} / {mission.code}</span><span className={`status-chip ${mission.scoreConfigStatus}`}>{formatStatus(mission.scoreConfigStatus)}</span></div><h3>{mission.name}</h3><p>{mission.description}</p><footer><span>Máx. {mission.maxPoints ?? 'a definir'} pts</span><span title={mission.sourceReference}><BookOpen size={13} style={{ verticalAlign: 'middle' }} /> Fonte vinculada</span></footer>{mission.warning && <div className="notice" style={{ marginTop: 12 }}><AlertTriangle size={14} />{mission.warning}</div>}</article>) : <div className="card" style={{ gridColumn: '1/-1' }}><EmptyState title="Nenhuma missão corresponde a esta visão" body="Tente outro status de configuração." /></div>}</div>}
+    </div>
+  );
 }
 
 function TeamPage() {
-  const qc2 = useQueryClient(); const team = useGetTeam(); const members = useListMembers(); const updateTeam = useUpdateTeam(); const create = useCreateMember(); const update = useUpdateMember(); const remove = useDeleteMember(); const [editing, setEditing] = useState(false); const [form, setForm] = useState<any>({}); const [newName, setNewName] = useState(''); const [newNick, setNewNick] = useState('');
+  const queryClient = useQueryClient();
+  const team = useGetTeam();
+  const members = useListMembers();
+  const updateTeam = useUpdateTeam();
+  const create = useCreateMember();
+  const update = useUpdateMember();
+  const remove = useDeleteMember();
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<any>({});
+  const [newName, setNewName] = useState('');
+  const [newNick, setNewNick] = useState('');
   useEffect(() => { if (team.data) setForm(team.data); }, [team.data]);
-  if (team.isLoading || members.isLoading) return <div className="content"><LoadingState /></div>; if (team.isError || members.isError) return <div className="content"><ErrorState retry={() => { team.refetch(); members.refetch(); }} /></div>;
-  const t: any = team.data; const saveTeam = () => updateTeam.mutate({ data: { name: form.name, number: form.number, city: form.city, country: form.country, robotName: form.robotName } as any }, { onSuccess: (next: any) => { qc2.setQueryData(getGetTeamQueryKey(), next); setEditing(false); } }); const addMember = () => { if (!newName.trim()) return; create.mutate({ data: { name: newName, nickname: newNick } }, { onSuccess: () => { qc2.invalidateQueries({ queryKey: getListMembersQueryKey() }); setNewName(''); setNewNick(''); } }); };
-  return <div className="content"><PageHeading eyebrow="BIOGLOW / identity" title="The people behind the robot." subtitle="Keep the team signal clear, on the field and in the record." action={<button className="button button-primary" onClick={() => setEditing((v) => !v)} data-testid="button-edit-team"><Pencil size={14} />{editing ? 'Close edit' : 'Edit identity'}</button>} /><div className="profile-banner"><div className="profile-orb">{t?.number || 'TE'}</div><div><h2>{t?.name || 'TechEra'}</h2><p>Team {t?.number} · {t?.city}, {t?.country} · {t?.division}</p></div></div><div className="grid two-col"><section className="card settings-section">{editing ? <><div className="form-grid"><div className="field"><label>Team name</label><input className="input" value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })} data-testid="input-team-name" /></div><div className="field"><label>Team number</label><input className="input" value={form.number || ''} onChange={(e) => setForm({ ...form, number: e.target.value })} data-testid="input-team-number" /></div><div className="field"><label>City</label><input className="input" value={form.city || ''} onChange={(e) => setForm({ ...form, city: e.target.value })} data-testid="input-team-city" /></div><div className="field"><label>Country</label><input className="input" value={form.country || ''} onChange={(e) => setForm({ ...form, country: e.target.value })} data-testid="input-team-country" /></div><div className="field full"><label>Robot name</label><input className="input" value={form.robotName || ''} onChange={(e) => setForm({ ...form, robotName: e.target.value })} data-testid="input-robot-name" /></div></div><button className="button button-primary" style={{ marginTop: 18 }} onClick={saveTeam} disabled={updateTeam.isPending} data-testid="button-save-team">{updateTeam.isPending ? 'Saving…' : 'Save identity'}</button></> : <><div className="setting-row"><div><strong>Robot</strong><p>{t?.robotName || 'Not named'}</p></div><b>{t?.number}</b></div><div className="setting-row"><div><strong>Season</strong><p>Exclusive workspace season</p></div><b>BIOGLOW 2026–2027</b></div><div className="setting-row"><div><strong>Rulebook</strong><p>Last checked {t?.rulesUpdatedAt ? new Date(t.rulesUpdatedAt).toLocaleDateString('en-GB') : 'not recorded'}</p></div><b>{t?.rulebookVersion || '—'}</b></div></>}</section><section className="card settings-section"><div className="card-head" style={{ padding: 0, marginBottom: 14 }}><div><h2>Active members</h2><span className="muted">People currently on the roster</span></div><Users size={17} color="hsl(var(--primary))" /></div><div className="member-list">{(members.data as any[]).filter((m) => m.active).map((m) => <div className="member" key={m.id}><div className="avatar">{(m.nickname || m.name).slice(0, 2).toUpperCase()}</div><div className="member-info"><strong>{m.name}</strong><span>{m.nickname ? `“${m.nickname}”` : 'No nickname'}</span></div><div className="member-actions"><button className="button button-ghost" style={{ padding: 7 }} onClick={() => update.mutate({ id: m.id, data: { active: false } }, { onSuccess: () => qc2.invalidateQueries({ queryKey: getListMembersQueryKey() }) })} data-testid={`button-archive-member-${m.id}`}><Archive size={13} /></button><button className="button button-danger" style={{ padding: 7 }} onClick={() => { if (window.confirm('Remove this member from the roster?')) remove.mutate({ id: m.id }, { onSuccess: () => qc2.invalidateQueries({ queryKey: getListMembersQueryKey() }) }); }} data-testid={`button-delete-member-${m.id}`}><Trash2 size={13} /></button></div></div>)}<div className="member" style={{ alignItems: 'flex-end' }}><div style={{ flex: 1, display: 'flex', gap: 7 }}><input className="input" placeholder="Member name" value={newName} onChange={(e) => setNewName(e.target.value)} data-testid="input-new-member-name" /><input className="input" placeholder="Nickname" value={newNick} onChange={(e) => setNewNick(e.target.value)} data-testid="input-new-member-nickname" /></div><button className="button button-primary" style={{ padding: 10 }} onClick={addMember} disabled={create.isPending} data-testid="button-add-member"><Plus size={14} /></button></div></div></section></div></div>;
+  if (team.isLoading || members.isLoading) return <div className="content"><LoadingState /></div>;
+  if (team.isError || members.isError) return <div className="content"><ErrorState retry={() => { team.refetch(); members.refetch(); }} /></div>;
+  const data: any = team.data;
+  const saveTeam = () => updateTeam.mutate({ data: { name: form.name, number: form.number, city: form.city, country: form.country, robotName: form.robotName } as any }, { onSuccess: (next: any) => { queryClient.setQueryData(getGetTeamQueryKey(), next); setEditing(false); } });
+  const addMember = () => { if (!newName.trim()) return; create.mutate({ data: { name: newName, nickname: newNick } }, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: getListMembersQueryKey() }); setNewName(''); setNewNick(''); } }); };
+
+  return (
+    <div className="content">
+      <PageHeading eyebrow="BIOGLOW / identidade" title="As pessoas por trás do robô." subtitle="Mantenha a equipe alinhada, em campo e nos registros." action={<button className="button button-primary" onClick={() => setEditing((value) => !value)} data-testid="button-edit-team"><Pencil size={14} />{editing ? 'Fechar edição' : 'Editar identidade'}</button>} />
+      <div className="profile-banner"><div className="profile-orb">{data?.number || 'TE'}</div><div><h2>{data?.name || 'TechEra'}</h2><p>Equipe {data?.number} · {data?.city}, {data?.country} · {data?.division}</p></div></div>
+      <div className="grid two-col">
+        <section className="card settings-section">{editing ? <><div className="form-grid"><div className="field"><label>Nome da equipe</label><input className="input" value={form.name || ''} onChange={(event) => setForm({ ...form, name: event.target.value })} data-testid="input-team-name" /></div><div className="field"><label>Número da equipe</label><input className="input" value={form.number || ''} onChange={(event) => setForm({ ...form, number: event.target.value })} data-testid="input-team-number" /></div><div className="field"><label>Cidade</label><input className="input" value={form.city || ''} onChange={(event) => setForm({ ...form, city: event.target.value })} data-testid="input-team-city" /></div><div className="field"><label>País</label><input className="input" value={form.country || ''} onChange={(event) => setForm({ ...form, country: event.target.value })} data-testid="input-team-country" /></div><div className="field full"><label>Nome do robô</label><input className="input" value={form.robotName || ''} onChange={(event) => setForm({ ...form, robotName: event.target.value })} data-testid="input-robot-name" /></div></div><button className="button button-primary" style={{ marginTop: 18 }} onClick={saveTeam} disabled={updateTeam.isPending} data-testid="button-save-team">{updateTeam.isPending ? 'Salvando…' : 'Salvar identidade'}</button></> : <><div className="setting-row"><div><strong>Robô</strong><p>{data?.robotName || 'Sem nome'}</p></div><b>{data?.number}</b></div><div className="setting-row"><div><strong>Temporada</strong><p>Temporada exclusiva do espaço</p></div><b>BIOGLOW 2026–2027</b></div><div className="setting-row"><div><strong>Regulamento</strong><p>Última verificação {data?.rulesUpdatedAt ? new Date(data.rulesUpdatedAt).toLocaleDateString('pt-BR') : 'não registrada'}</p></div><b>{data?.rulebookVersion || '—'}</b></div></>}</section>
+        <section className="card settings-section"><div className="card-head" style={{ padding: 0, marginBottom: 14 }}><div><h2>Integrantes ativos</h2><span className="muted">Pessoas atualmente na equipe</span></div><Users size={17} color="hsl(var(--primary))" /></div><div className="member-list">{(members.data as any[]).filter((member) => member.active).map((member) => <div className="member" key={member.id}><div className="avatar">{(member.nickname || member.name).slice(0, 2).toUpperCase()}</div><div className="member-info"><strong>{member.name}</strong><span>{member.nickname ? `“${member.nickname}”` : 'Sem apelido'}</span></div><div className="member-actions"><button className="button button-ghost" style={{ padding: 7 }} onClick={() => update.mutate({ id: member.id, data: { active: false } }, { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListMembersQueryKey() }) })} data-testid={`button-archive-member-${member.id}`}><Archive size={13} /></button><button className="button button-danger" style={{ padding: 7 }} onClick={() => { if (window.confirm('Remover este integrante da equipe?')) remove.mutate({ id: member.id }, { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListMembersQueryKey() }) }); }} data-testid={`button-delete-member-${member.id}`}><Trash2 size={13} /></button></div></div>)}<div className="member" style={{ alignItems: 'flex-end' }}><div style={{ flex: 1, display: 'flex', gap: 7 }}><input className="input" placeholder="Nome do integrante" value={newName} onChange={(event) => setNewName(event.target.value)} data-testid="input-new-member-name" /><input className="input" placeholder="Apelido" value={newNick} onChange={(event) => setNewNick(event.target.value)} data-testid="input-new-member-nickname" /></div><button className="button button-primary" style={{ padding: 10 }} onClick={addMember} disabled={create.isPending} data-testid="button-add-member"><Plus size={14} /></button></div></div></section>
+      </div>
+    </div>
+  );
 }
 
 function SettingsPage() {
-  const team = useGetTeam(); const [saved, setSaved] = useState(false); const [source, setSource] = useState('official-rulebook'); const [version, setVersion] = useState('BIOGLOW 2026–2027 · v1.0');
-  return <div className="content"><PageHeading eyebrow="BIOGLOW / configuration" title="Keep the source clean." subtitle="Scoring confidence starts with a rulebook the whole team can point to." /><div className="grid two-col"><section className="card settings-section"><div className="card-head" style={{ padding: 0, marginBottom: 20 }}><div><h2>Rulebook source</h2><span className="muted">Used as the reference for mission setup</span></div><ShieldCheck size={17} color="hsl(var(--primary))" /></div><div className="grid"><div className="field"><label htmlFor="rulebook-source">Primary source</label><select id="rulebook-source" className="select" value={source} onChange={(e) => { setSource(e.target.value); setSaved(false); }} data-testid="select-rulebook-source"><option value="official-rulebook">Official FIRST rulebook</option><option value="team-copy">Team-verified copy</option></select></div><div className="field"><label htmlFor="rulebook-version">Version label</label><input id="rulebook-version" className="input" value={version} onChange={(e) => { setVersion(e.target.value); setSaved(false); }} data-testid="input-rulebook-version" /></div><div className="notice"><BookOpen size={15} />Mission scoring stays pending until its criteria have a verified source reference.</div><button className="button button-primary" onClick={() => setSaved(true)} data-testid="button-save-settings">{saved ? <><Check size={14} />Saved for this workspace</> : 'Save configuration'}</button></div></section><section className="card settings-section"><div className="card-head" style={{ padding: 0, marginBottom: 20 }}><div><h2>Workspace guardrails</h2><span className="muted">What this tracker is tuned for</span></div><Database size={17} color="hsl(var(--primary))" /></div><div className="setting-row"><div><strong>Active season</strong><p>This workspace only accepts the current BIOGLOW season.</p></div><span className="status-chip verified">BIOGLOW</span></div><div className="setting-row"><div><strong>Division</strong><p>Round scoring and mission reads are set for this format.</p></div><b>Challenge</b></div><div className="setting-row"><div><strong>Team record</strong><p>Identity changes are managed from the Team page.</p></div><Link href="/team" className="link" data-testid="link-settings-team">Open team <ArrowRight size={12} style={{ verticalAlign: 'middle' }} /></Link></div></section></div>{team.data && <div className="card" style={{ marginTop: 18, padding: 20 }}><div className="eyebrow">Connected identity</div><p style={{ fontSize: 12 }}><b>{(team.data as any).name}</b> · {(team.data as any).robotName} · {(team.data as any).rulebookVersion}</p></div>}</div>;
+  const team = useGetTeam();
+  const [saved, setSaved] = useState(false);
+  const [source, setSource] = useState('official-rulebook');
+  const [version, setVersion] = useState('BIOGLOW 2026–2027 · v1.0');
+  return (
+    <div className="content">
+      <PageHeading eyebrow="BIOGLOW / configuração" title="Mantenha a fonte confiável." subtitle="A confiança na pontuação começa com um regulamento que toda a equipe pode consultar." />
+      <div className="grid two-col">
+        <section className="card settings-section"><div className="card-head" style={{ padding: 0, marginBottom: 20 }}><div><h2>Fonte do regulamento</h2><span className="muted">Usada como referência para configurar as missões</span></div><ShieldCheck size={17} color="hsl(var(--primary))" /></div><div className="grid"><div className="field"><label htmlFor="rulebook-source">Fonte principal</label><select id="rulebook-source" className="select" value={source} onChange={(event) => { setSource(event.target.value); setSaved(false); }} data-testid="select-rulebook-source"><option value="official-rulebook">Regulamento oficial FIRST</option><option value="team-copy">Cópia verificada pela equipe</option></select></div><div className="field"><label htmlFor="rulebook-version">Identificação da versão</label><input id="rulebook-version" className="input" value={version} onChange={(event) => { setVersion(event.target.value); setSaved(false); }} data-testid="input-rulebook-version" /></div><div className="notice"><BookOpen size={15} />A pontuação das missões permanece pendente até que seus critérios tenham uma fonte verificada.</div><button className="button button-primary" onClick={() => setSaved(true)} data-testid="button-save-settings">{saved ? <><Check size={14} />Salvo neste espaço</> : 'Salvar configuração'}</button></div></section>
+        <section className="card settings-section"><div className="card-head" style={{ padding: 0, marginBottom: 20 }}><div><h2>Proteções do espaço de trabalho</h2><span className="muted">Para o que este app está preparado</span></div><Database size={17} color="hsl(var(--primary))" /></div><div className="setting-row"><div><strong>Temporada ativa</strong><p>Este espaço aceita apenas a temporada BIOGLOW atual.</p></div><span className="status-chip verified">BIOGLOW</span></div><div className="setting-row"><div><strong>Divisão</strong><p>A pontuação dos rounds e as leituras das missões estão configuradas para este formato.</p></div><b>Challenge</b></div><div className="setting-row"><div><strong>Registro da equipe</strong><p>As alterações de identidade são gerenciadas na página Equipe.</p></div><Link href="/team" className="link" data-testid="link-settings-team">Abrir equipe <ArrowRight size={12} style={{ verticalAlign: 'middle' }} /></Link></div></section>
+      </div>
+      {team.data && <div className="card" style={{ marginTop: 18, padding: 20 }}><div className="eyebrow">Identidade conectada</div><p style={{ fontSize: 12 }}><b>{(team.data as any).name}</b> · {(team.data as any).robotName} · {(team.data as any).rulebookVersion}</p></div>}
+    </div>
+  );
 }
 
-function Router() { return <ErrorBoundary><Switch><Route path="/" component={Overview} /><Route path="/rounds/new" component={NewRound} /><Route path="/rounds" component={Rounds} /><Route path="/rounds/:id" component={RoundDetail} /><Route path="/analytics" component={AnalyticsPage} /><Route path="/missions" component={MissionsPage} /><Route path="/team" component={TeamPage} /><Route path="/settings" component={SettingsPage} /><Route component={NotFound} /></Switch></ErrorBoundary>; }
-function App() { return <QueryClientProvider client={qc}><Shell><Router /></Shell></QueryClientProvider>; }
+function Router() {
+  return <ErrorBoundary><Switch><Route path="/" component={Overview} /><Route path="/rounds/new" component={NewRound} /><Route path="/rounds" component={Rounds} /><Route path="/rounds/:id" component={RoundDetail} /><Route path="/analytics" component={AnalyticsPage} /><Route path="/missions" component={MissionsPage} /><Route path="/team" component={TeamPage} /><Route path="/settings" component={SettingsPage} /><Route component={NotFound} /></Switch></ErrorBoundary>;
+}
+
+function App() {
+  return <QueryClientProvider client={queryClient}><Shell><Router /></Shell></QueryClientProvider>;
+}
+
 export default App;
