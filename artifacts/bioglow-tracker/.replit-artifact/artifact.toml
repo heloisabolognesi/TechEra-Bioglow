@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "TechEra BIOGLOW Tracker"
+description = "Aplicativo interno da equipe TechEra para registrar rounds, acompanhar pontuação e orientar treinos da temporada BIOGLOW 2026–2027 da FIRST LEGO League Challenge."
+version = "1.0.0"
+id = "artifacts/bioglow-tracker"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 26151
+
+[services.development]
+run = "pnpm --filter @workspace/bioglow-tracker run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/bioglow-tracker", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/bioglow-tracker/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "26151"
+BASE_PATH = "/"

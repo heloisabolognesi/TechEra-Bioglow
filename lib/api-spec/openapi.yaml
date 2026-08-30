@@ -3,20 +3,22 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: API do TechEra BIOGLOW Tracker
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: team
+  - name: missions
+  - name: rounds
+  - name: analytics
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +26,474 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /team:
+    get:
+      operationId: getTeam
+      tags: [team]
+      summary: Retorna a equipe ativa
+      responses:
+        "200":
+          description: Equipe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Team"
+    patch:
+      operationId: updateTeam
+      tags: [team]
+      summary: Atualiza a identidade da equipe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TeamInput"
+      responses:
+        "200":
+          description: Equipe atualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Team"
+  /members:
+    get:
+      operationId: listMembers
+      tags: [team]
+      summary: Lista integrantes
+      responses:
+        "200":
+          description: Integrantes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Member"
+    post:
+      operationId: createMember
+      tags: [team]
+      summary: Adiciona integrante
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberInput"
+      responses:
+        "201":
+          description: Integrante criado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+  /members/{id}:
+    patch:
+      operationId: updateMember
+      tags: [team]
+      summary: Atualiza integrante
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberUpdate"
+      responses:
+        "200":
+          description: Integrante atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+    delete:
+      operationId: deleteMember
+      tags: [team]
+      summary: Arquiva integrante
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "204":
+          description: Integrante arquivado
+  /missions:
+    get:
+      operationId: listMissions
+      tags: [missions]
+      summary: Lista as 15 missões BIOGLOW
+      responses:
+        "200":
+          description: Missões
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Mission"
+  /rounds:
+    get:
+      operationId: listRounds
+      tags: [rounds]
+      summary: Lista rounds com filtros
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [training, simulation, official]
+        - in: query
+          name: sort
+          schema:
+            type: string
+            enum: [recent, best, evolution]
+            default: recent
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200":
+          description: Histórico
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RoundSummary"
+    post:
+      operationId: createRound
+      tags: [rounds]
+      summary: Cria um round
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoundInput"
+      responses:
+        "201":
+          description: Round criado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Round"
+  /rounds/{id}:
+    get:
+      operationId: getRound
+      tags: [rounds]
+      summary: Retorna um round completo
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Round
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Round"
+    patch:
+      operationId: updateRound
+      tags: [rounds]
+      summary: Atualiza um round
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoundUpdate"
+      responses:
+        "200":
+          description: Round atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Round"
+    delete:
+      operationId: archiveRound
+      tags: [rounds]
+      summary: Move um round para a lixeira
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "204":
+          description: Round arquivado
+  /rounds/{id}/duplicate:
+    post:
+      operationId: duplicateRound
+      tags: [rounds]
+      summary: Duplica um round para nova tentativa
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "201":
+          description: Cópia criada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Round"
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [analytics]
+      summary: Resumo da visão geral
+      responses:
+        "200":
+          description: Resumo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+  /analytics:
+    get:
+      operationId: getAnalytics
+      tags: [analytics]
+      summary: Dados agregados de evolução
+      responses:
+        "200":
+          description: Análises
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Analytics"
+  /rounds/export:
+    get:
+      operationId: exportRounds
+      tags: [rounds]
+      summary: Exporta o histórico filtrado
+      parameters:
+        - in: query
+          name: format
+          required: true
+          schema:
+            type: string
+            enum: [csv, json]
+      responses:
+        "200":
+          description: Exportação
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RoundSummary"
+            text/csv:
+              schema: { type: string }
 components:
+  parameters:
+    Id:
+      in: path
+      name: id
+      required: true
+      schema: { type: integer, minimum: 1 }
   schemas:
     HealthStatus:
       type: object
       properties:
-        status:
-          type: string
-      required:
-        - status
-
+        status: { type: string }
+      required: [status]
+    Team:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        number: { type: string }
+        city: { type: string }
+        country: { type: string }
+        seasonName: { type: string, enum: ["BIOGLOW 2026–2027"] }
+        division: { type: string, enum: [Challenge] }
+        robotName: { type: string }
+        rulebookVersion: { type: string }
+        rulesUpdatedAt: { type: string, format: date }
+      required: [id, name, number, city, country, seasonName, division, robotName, rulebookVersion, rulesUpdatedAt]
+    TeamInput:
+      type: object
+      required: [name, number, city, country, robotName]
+      properties:
+        name: { type: string, minLength: 1 }
+        number: { type: string }
+        city: { type: string }
+        country: { type: string }
+        robotName: { type: string }
+    Member:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        nickname: { type: ["string", "null"] }
+        active: { type: boolean }
+      required: [id, name, nickname, active]
+    MemberInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1 }
+        nickname: { type: string }
+    MemberUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        nickname: { type: ["string", "null"] }
+        active: { type: boolean }
+    Mission:
+      type: object
+      properties:
+        id: { type: integer }
+        number: { type: integer, minimum: 1, maximum: 15 }
+        code: { type: string }
+        name: { type: string }
+        description: { type: string }
+        maxPoints: { type: ["integer", "null"] }
+        scoreConfigStatus: { type: string, enum: [pending, verified] }
+        warning: { type: ["string", "null"] }
+        sourceReference: { type: string }
+      required: [id, number, code, name, description, maxPoints, scoreConfigStatus, warning, sourceReference]
+    CriterionResult:
+      type: object
+      properties:
+        label: { type: string }
+        achieved: { type: boolean }
+        quantity: { type: integer, minimum: 0 }
+        points: { type: integer, minimum: 0 }
+      required: [label, achieved, quantity, points]
+    MissionResult:
+      type: object
+      properties:
+        missionId: { type: integer }
+        status: { type: string, enum: [not_attempted, failed, partial, complete, bonus, not_applicable] }
+        attempted: { type: boolean }
+        points: { type: integer, minimum: 0 }
+        criteria: { type: array, items: { $ref: "#/components/schemas/CriterionResult" } }
+        failureType: { type: ["string", "null"] }
+        technicalNotes: { type: string }
+        confidence: { type: string, enum: [low, medium, high] }
+      required: [missionId, status, attempted, points, criteria, failureType, technicalNotes, confidence]
+    RoundMember:
+      type: object
+      properties:
+        memberId: { type: integer }
+        name: { type: string }
+        nickname: { type: ["string", "null"] }
+      required: [memberId, name, nickname]
+    Inspection:
+      type: object
+      properties:
+        status: { type: string, enum: [approved, rejected, unregistered] }
+        points: { type: integer, minimum: 0 }
+        notes: { type: string }
+      required: [status, points, notes]
+    Tokens:
+      type: object
+      properties:
+        started: { type: integer, enum: [6] }
+        remaining: { type: integer, minimum: 0, maximum: 6 }
+        interruptions: { type: integer, minimum: 0 }
+        notes: { type: string }
+      required: [started, remaining, interruptions, notes]
+    RoundInput:
+      type: object
+      required: [dateTime, type, plannedDurationSeconds]
+      properties:
+        dateTime: { type: string, format: date-time }
+        type: { type: string, enum: [training, simulation, official] }
+        seasonName: { type: string, enum: ["BIOGLOW 2026–2027"] }
+        event: { type: string }
+        roundNumber: { type: string }
+        memberIds: { type: array, items: { type: integer } }
+        plannedDurationSeconds: { type: integer, minimum: 1, default: 150 }
+        actualDurationSeconds: { type: ["integer", "null"], minimum: 0 }
+        robotVersion: { type: string }
+        fieldSetup: { type: string }
+        fieldConditions: { type: string }
+        generalNotes: { type: string }
+        missionResults: { type: array, items: { $ref: "#/components/schemas/MissionResult" } }
+        tokens: { $ref: "#/components/schemas/Tokens" }
+        inspection: { $ref: "#/components/schemas/Inspection" }
+        officialScore: { type: ["integer", "null"], minimum: 0 }
+        officialScoreNotes: { type: string }
+        status: { type: string, enum: [draft, saved] }
+    RoundUpdate:
+      type: object
+      properties:
+        dateTime: { type: string, format: date-time }
+        type: { type: string, enum: [training, simulation, official] }
+        seasonName: { type: string, enum: ["BIOGLOW 2026–2027"] }
+        event: { type: string }
+        roundNumber: { type: string }
+        memberIds: { type: array, items: { type: integer } }
+        plannedDurationSeconds: { type: integer, minimum: 1 }
+        actualDurationSeconds: { type: ["integer", "null"], minimum: 0 }
+        robotVersion: { type: string }
+        fieldSetup: { type: string }
+        fieldConditions: { type: string }
+        generalNotes: { type: string }
+        missionResults: { type: array, items: { $ref: "#/components/schemas/MissionResult" } }
+        tokens: { $ref: "#/components/schemas/Tokens" }
+        inspection: { $ref: "#/components/schemas/Inspection" }
+        officialScore: { type: ["integer", "null"], minimum: 0 }
+        officialScoreNotes: { type: string }
+        status: { type: string, enum: [draft, saved] }
+    Round:
+      allOf:
+        - $ref: "#/components/schemas/RoundInput"
+        - type: object
+          required: [id, totalScore, estimatedScore, attemptedMissions, problemsCount, members, createdAt, updatedAt]
+          properties:
+            id: { type: integer }
+            totalScore: { type: integer, minimum: 0 }
+            estimatedScore: { type: integer, minimum: 0 }
+            attemptedMissions: { type: integer, minimum: 0, maximum: 15 }
+            problemsCount: { type: integer, minimum: 0 }
+            members: { type: array, items: { $ref: "#/components/schemas/RoundMember" } }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    RoundSummary:
+      type: object
+      properties:
+        id: { type: integer }
+        dateTime: { type: string, format: date-time }
+        type: { type: string, enum: [training, simulation, official] }
+        event: { type: string }
+        totalScore: { type: integer }
+        attemptedMissions: { type: integer }
+        members: { type: array, items: { $ref: "#/components/schemas/RoundMember" } }
+        actualDurationSeconds: { type: ["integer", "null"] }
+        robotVersion: { type: string }
+        problemsCount: { type: integer }
+        status: { type: string, enum: [draft, saved, archived] }
+      required: [id, dateTime, type, event, totalScore, attemptedMissions, members, actualDurationSeconds, robotVersion, problemsCount, status]
+    MissionMetric:
+      type: object
+      properties:
+        missionId: { type: integer }
+        missionNumber: { type: integer }
+        missionName: { type: string }
+        bestScore: { type: integer }
+        averageScore: { type: number }
+        successRate: { type: number }
+        attempts: { type: integer }
+        failures: { type: integer }
+        priority: { type: string, enum: [high, medium, low] }
+      required: [missionId, missionNumber, missionName, bestScore, averageScore, successRate, attempts, failures, priority]
+    Dashboard:
+      type: object
+      properties:
+        bestScore: { type: integer }
+        recentAverage: { type: number }
+        lastScore: { type: integer }
+        totalRounds: { type: integer }
+        averageTokens: { type: number }
+        latestRounds: { type: array, items: { $ref: "#/components/schemas/RoundSummary" } }
+        missionMetrics: { type: array, items: { $ref: "#/components/schemas/MissionMetric" } }
+        focusMissions: { type: array, items: { $ref: "#/components/schemas/MissionMetric" }, maxItems: 3 }
+        frequentProblems: { type: array, items: { type: string } }
+      required: [bestScore, recentAverage, lastScore, totalRounds, averageTokens, latestRounds, missionMetrics, focusMissions, frequentProblems]
+    Analytics:
+      type: object
+      properties:
+        scoreTrend: { type: array, items: { type: object, properties: { date: { type: string }, score: { type: integer }, type: { type: string } }, required: [date, score, type] } }
+        missionMetrics: { type: array, items: { $ref: "#/components/schemas/MissionMetric" } }
+        problemHistory: { type: array, items: { type: object, properties: { label: { type: string }, count: { type: integer } }, required: [label, count] } }
+      required: [scoreTrend, missionMetrics, problemHistory]
