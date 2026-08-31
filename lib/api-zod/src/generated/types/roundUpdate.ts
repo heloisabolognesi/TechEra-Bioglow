@@ -5,12 +5,12 @@
  * API do TechEra BIOGLOW Tracker
  * OpenAPI spec version: 0.1.0
  */
-import type { Inspection } from './inspection';
-import type { MissionResult } from './missionResult';
+import type { InspectionInput } from './inspectionInput';
+import type { MissionResultInput } from './missionResultInput';
 import type { RoundUpdateSeasonName } from './roundUpdateSeasonName';
 import type { RoundUpdateStatus } from './roundUpdateStatus';
 import type { RoundUpdateType } from './roundUpdateType';
-import type { Tokens } from './tokens';
+import type { TokensInput } from './tokensInput';
 
 export interface RoundUpdate {
   dateTime?: Date;
@@ -30,14 +30,9 @@ export interface RoundUpdate {
   fieldSetup?: string;
   fieldConditions?: string;
   generalNotes?: string;
-  missionResults?: MissionResult[];
-  tokens?: Tokens;
-  inspection?: Inspection;
-  /**
-     * @minimum 0
-     * @nullable
-     */
-  officialScore?: number | null;
+  missionResults?: MissionResultInput[];
+  tokens?: TokensInput;
+  inspection?: InspectionInput;
   officialScoreNotes?: string;
   status?: RoundUpdateStatus;
 }

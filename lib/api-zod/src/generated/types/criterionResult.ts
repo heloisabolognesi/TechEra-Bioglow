@@ -7,10 +7,13 @@
  */
 
 export interface CriterionResult {
+  key: string;
   label: string;
   achieved: boolean;
   /** @minimum 0 */
   quantity: number;
   /** @minimum 0 */
   points: number;
+  /** @nullable */
+  selection: string | null;
 }

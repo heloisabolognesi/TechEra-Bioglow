@@ -349,15 +349,53 @@ components:
         scoreConfigStatus: { type: string, enum: [pending, verified] }
         warning: { type: ["string", "null"] }
         sourceReference: { type: string }
-      required: [id, number, code, name, description, maxPoints, scoreConfigStatus, warning, sourceReference]
+        scoringRules: { type: array, items: { $ref: "#/components/schemas/MissionScoringRule" } }
+      required: [id, number, code, name, description, maxPoints, scoreConfigStatus, warning, sourceReference, scoringRules]
+    MissionScoringOption:
+      type: object
+      properties:
+        value: { type: string }
+        label: { type: string }
+        points: { type: integer, minimum: 0 }
+      required: [value, label, points]
+    MissionScoringRule:
+      type: object
+      properties:
+        key: { type: string }
+        label: { type: string }
+        points: { type: integer, minimum: 0 }
+        perUnit: { type: boolean }
+        inputKind: { type: string, enum: [boolean, quantity, select] }
+        options: { type: array, items: { $ref: "#/components/schemas/MissionScoringOption" } }
+        helper: { type: ["string", "null"] }
+      required: [key, label, points, perUnit, inputKind, options, helper]
+    CriterionInput:
+      type: object
+      properties:
+        key: { type: string }
+        achieved: { type: boolean }
+        quantity: { type: integer, minimum: 0 }
+        selection: { type: ["string", "null"] }
+      required: [key, achieved, quantity, selection]
     CriterionResult:
       type: object
       properties:
+        key: { type: string }
         label: { type: string }
         achieved: { type: boolean }
         quantity: { type: integer, minimum: 0 }
         points: { type: integer, minimum: 0 }
-      required: [label, achieved, quantity, points]
+        selection: { type: ["string", "null"] }
+      required: [key, label, achieved, quantity, points, selection]
+    MissionResultInput:
+      type: object
+      properties:
+        missionId: { type: integer, minimum: 1 }
+        criteria: { type: array, items: { $ref: "#/components/schemas/CriterionInput" } }
+        failureType: { type: ["string", "null"] }
+        technicalNotes: { type: string }
+        confidence: { type: string, enum: [low, medium, high] }
+      required: [missionId, criteria, failureType, technicalNotes, confidence]
     MissionResult:
       type: object
       properties:
@@ -384,7 +422,13 @@ components:
         points: { type: integer, minimum: 0 }
         notes: { type: string }
       required: [status, points, notes]
-    Tokens:
+    InspectionInput:
+      type: object
+      properties:
+        status: { type: string, enum: [approved, rejected, unregistered] }
+        notes: { type: string }
+      required: [status, notes]
+    TokensInput:
       type: object
       properties:
         started: { type: integer, enum: [6] }
@@ -392,6 +436,21 @@ components:
         interruptions: { type: integer, minimum: 0 }
         notes: { type: string }
       required: [started, remaining, interruptions, notes]
+    Tokens:
+      allOf:
+        - $ref: "#/components/schemas/TokensInput"
+        - type: object
+          properties:
+            points: { type: integer, minimum: 0 }
+          required: [points]
+    ScoreBreakdown:
+      type: object
+      properties:
+        missionPoints: { type: integer, minimum: 0 }
+        inspectionPoints: { type: integer, minimum: 0 }
+        tokenPoints: { type: integer, minimum: 0 }
+        total: { type: integer, minimum: 0 }
+      required: [missionPoints, inspectionPoints, tokenPoints, total]
     RoundInput:
       type: object
       required: [dateTime, type, plannedDurationSeconds]
@@ -408,10 +467,9 @@ components:
         fieldSetup: { type: string }
         fieldConditions: { type: string }
         generalNotes: { type: string }
-        missionResults: { type: array, items: { $ref: "#/components/schemas/MissionResult" } }
-        tokens: { $ref: "#/components/schemas/Tokens" }
-        inspection: { $ref: "#/components/schemas/Inspection" }
-        officialScore: { type: ["integer", "null"], minimum: 0 }
+        missionResults: { type: array, items: { $ref: "#/components/schemas/MissionResultInput" } }
+        tokens: { $ref: "#/components/schemas/TokensInput" }
+        inspection: { $ref: "#/components/schemas/InspectionInput" }
         officialScoreNotes: { type: string }
         status: { type: string, enum: [draft, saved] }
     RoundUpdate:
@@ -429,23 +487,26 @@ components:
         fieldSetup: { type: string }
         fieldConditions: { type: string }
         generalNotes: { type: string }
-        missionResults: { type: array, items: { $ref: "#/components/schemas/MissionResult" } }
-        tokens: { $ref: "#/components/schemas/Tokens" }
-        inspection: { $ref: "#/components/schemas/Inspection" }
-        officialScore: { type: ["integer", "null"], minimum: 0 }
+        missionResults: { type: array, items: { $ref: "#/components/schemas/MissionResultInput" } }
+        tokens: { $ref: "#/components/schemas/TokensInput" }
+        inspection: { $ref: "#/components/schemas/InspectionInput" }
         officialScoreNotes: { type: string }
         status: { type: string, enum: [draft, saved] }
     Round:
       allOf:
         - $ref: "#/components/schemas/RoundInput"
         - type: object
-          required: [id, totalScore, estimatedScore, attemptedMissions, problemsCount, members, createdAt, updatedAt]
+          required: [id, missionResults, tokens, inspection, totalScore, estimatedScore, attemptedMissions, problemsCount, scoreBreakdown, members, createdAt, updatedAt]
           properties:
             id: { type: integer }
+            missionResults: { type: array, items: { $ref: "#/components/schemas/MissionResult" } }
+            tokens: { $ref: "#/components/schemas/Tokens" }
+            inspection: { $ref: "#/components/schemas/Inspection" }
             totalScore: { type: integer, minimum: 0 }
             estimatedScore: { type: integer, minimum: 0 }
             attemptedMissions: { type: integer, minimum: 0, maximum: 15 }
             problemsCount: { type: integer, minimum: 0 }
+            scoreBreakdown: { $ref: "#/components/schemas/ScoreBreakdown" }
             members: { type: array, items: { $ref: "#/components/schemas/RoundMember" } }
             createdAt: { type: string, format: date-time }
             updatedAt: { type: string, format: date-time }

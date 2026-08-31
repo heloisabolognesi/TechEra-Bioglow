@@ -137,6 +137,10 @@ export const DeleteMemberResponse = zod.void()
  */
 export const listMissionsResponseNumberMax = 15;
 
+export const listMissionsResponseScoringRulesItemPointsMin = 0;
+
+export const listMissionsResponseScoringRulesItemOptionsItemPointsMin = 0;
+
 
 
 export const ListMissionsResponseItem = zod.object({
@@ -148,7 +152,20 @@ export const ListMissionsResponseItem = zod.object({
   "maxPoints": zod.int().nullable(),
   "scoreConfigStatus": zod.enum(['pending', 'verified']),
   "warning": zod.string().nullable(),
-  "sourceReference": zod.string()
+  "sourceReference": zod.string(),
+  "scoringRules": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "points": zod.int().min(listMissionsResponseScoringRulesItemPointsMin),
+  "perUnit": zod.boolean(),
+  "inputKind": zod.enum(['boolean', 'quantity', 'select']),
+  "options": zod.array(zod.object({
+  "value": zod.string(),
+  "label": zod.string(),
+  "points": zod.int().min(listMissionsResponseScoringRulesItemOptionsItemPointsMin)
+})),
+  "helper": zod.string().nullable()
+}))
 })
 export const ListMissionsResponse = zod.array(ListMissionsResponseItem)
 
@@ -196,20 +213,13 @@ export const createRoundBodyPlannedDurationSecondsDefault = 150;
 
 export const createRoundBodyActualDurationSecondsMin = 0;
 
-export const createRoundBodyMissionResultsItemPointsMin = 0;
 
 export const createRoundBodyMissionResultsItemCriteriaItemQuantityMin = 0;
-
-export const createRoundBodyMissionResultsItemCriteriaItemPointsMin = 0;
 
 export const createRoundBodyTokensRemainingMin = 0;
 export const createRoundBodyTokensRemainingMax = 6;
 
 export const createRoundBodyTokensInterruptionsMin = 0;
-
-export const createRoundBodyInspectionPointsMin = 0;
-
-export const createRoundBodyOfficialScoreMin = 0;
 
 
 
@@ -227,15 +237,12 @@ export const CreateRoundBody = zod.object({
   "fieldConditions": zod.string().optional(),
   "generalNotes": zod.string().optional(),
   "missionResults": zod.array(zod.object({
-  "missionId": zod.int(),
-  "status": zod.enum(['not_attempted', 'failed', 'partial', 'complete', 'bonus', 'not_applicable']),
-  "attempted": zod.boolean(),
-  "points": zod.int().min(createRoundBodyMissionResultsItemPointsMin),
+  "missionId": zod.int().min(1),
   "criteria": zod.array(zod.object({
-  "label": zod.string(),
+  "key": zod.string(),
   "achieved": zod.boolean(),
   "quantity": zod.int().min(createRoundBodyMissionResultsItemCriteriaItemQuantityMin),
-  "points": zod.int().min(createRoundBodyMissionResultsItemCriteriaItemPointsMin)
+  "selection": zod.string().nullable()
 })),
   "failureType": zod.string().nullable(),
   "technicalNotes": zod.string(),
@@ -249,10 +256,8 @@ export const CreateRoundBody = zod.object({
 }).optional(),
   "inspection": zod.object({
   "status": zod.enum(['approved', 'rejected', 'unregistered']),
-  "points": zod.int().min(createRoundBodyInspectionPointsMin),
   "notes": zod.string()
 }).optional(),
-  "officialScore": zod.int().min(createRoundBodyOfficialScoreMin).nullish(),
   "officialScoreNotes": zod.string().optional(),
   "status": zod.enum(['draft', 'saved']).optional()
 })
@@ -261,20 +266,28 @@ export const createRoundResponseOnePlannedDurationSecondsDefault = 150;
 
 export const createRoundResponseOneActualDurationSecondsMin = 0;
 
-export const createRoundResponseOneMissionResultsItemPointsMin = 0;
 
 export const createRoundResponseOneMissionResultsItemCriteriaItemQuantityMin = 0;
-
-export const createRoundResponseOneMissionResultsItemCriteriaItemPointsMin = 0;
 
 export const createRoundResponseOneTokensRemainingMin = 0;
 export const createRoundResponseOneTokensRemainingMax = 6;
 
 export const createRoundResponseOneTokensInterruptionsMin = 0;
 
-export const createRoundResponseOneInspectionPointsMin = 0;
+export const createRoundResponseTwoMissionResultsItemPointsMin = 0;
 
-export const createRoundResponseOneOfficialScoreMin = 0;
+export const createRoundResponseTwoMissionResultsItemCriteriaItemQuantityMin = 0;
+
+export const createRoundResponseTwoMissionResultsItemCriteriaItemPointsMin = 0;
+
+export const createRoundResponseTwoTokensOneRemainingMin = 0;
+export const createRoundResponseTwoTokensOneRemainingMax = 6;
+
+export const createRoundResponseTwoTokensOneInterruptionsMin = 0;
+
+export const createRoundResponseTwoTokensTwoPointsMin = 0;
+
+export const createRoundResponseTwoInspectionPointsMin = 0;
 
 export const createRoundResponseTwoTotalScoreMin = 0;
 
@@ -284,6 +297,14 @@ export const createRoundResponseTwoAttemptedMissionsMin = 0;
 export const createRoundResponseTwoAttemptedMissionsMax = 15;
 
 export const createRoundResponseTwoProblemsCountMin = 0;
+
+export const createRoundResponseTwoScoreBreakdownMissionPointsMin = 0;
+
+export const createRoundResponseTwoScoreBreakdownInspectionPointsMin = 0;
+
+export const createRoundResponseTwoScoreBreakdownTokenPointsMin = 0;
+
+export const createRoundResponseTwoScoreBreakdownTotalMin = 0;
 
 
 
@@ -301,40 +322,71 @@ export const CreateRoundResponse = zod.object({
   "fieldConditions": zod.string().optional(),
   "generalNotes": zod.string().optional(),
   "missionResults": zod.array(zod.object({
-  "missionId": zod.int(),
-  "status": zod.enum(['not_attempted', 'failed', 'partial', 'complete', 'bonus', 'not_applicable']),
-  "attempted": zod.boolean(),
-  "points": zod.int().min(createRoundResponseOneMissionResultsItemPointsMin),
+  "missionId": zod.int().min(1),
   "criteria": zod.array(zod.object({
-  "label": zod.string(),
+  "key": zod.string(),
   "achieved": zod.boolean(),
   "quantity": zod.int().min(createRoundResponseOneMissionResultsItemCriteriaItemQuantityMin),
-  "points": zod.int().min(createRoundResponseOneMissionResultsItemCriteriaItemPointsMin)
+  "selection": zod.string().nullable()
 })),
   "failureType": zod.string().nullable(),
   "technicalNotes": zod.string(),
   "confidence": zod.enum(['low', 'medium', 'high'])
-})).optional(),
+})),
   "tokens": zod.object({
   "started": zod.literal(6),
   "remaining": zod.int().min(createRoundResponseOneTokensRemainingMin).max(createRoundResponseOneTokensRemainingMax),
   "interruptions": zod.int().min(createRoundResponseOneTokensInterruptionsMin),
   "notes": zod.string()
-}).optional(),
+}),
   "inspection": zod.object({
   "status": zod.enum(['approved', 'rejected', 'unregistered']),
-  "points": zod.int().min(createRoundResponseOneInspectionPointsMin),
   "notes": zod.string()
-}).optional(),
-  "officialScore": zod.int().min(createRoundResponseOneOfficialScoreMin).nullish(),
+}),
   "officialScoreNotes": zod.string().optional(),
   "status": zod.enum(['draft', 'saved']).optional()
 }).and(zod.object({
   "id": zod.int(),
+  "missionResults": zod.array(zod.object({
+  "missionId": zod.int(),
+  "status": zod.enum(['not_attempted', 'failed', 'partial', 'complete', 'bonus', 'not_applicable']),
+  "attempted": zod.boolean(),
+  "points": zod.int().min(createRoundResponseTwoMissionResultsItemPointsMin),
+  "criteria": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "achieved": zod.boolean(),
+  "quantity": zod.int().min(createRoundResponseTwoMissionResultsItemCriteriaItemQuantityMin),
+  "points": zod.int().min(createRoundResponseTwoMissionResultsItemCriteriaItemPointsMin),
+  "selection": zod.string().nullable()
+})),
+  "failureType": zod.string().nullable(),
+  "technicalNotes": zod.string(),
+  "confidence": zod.enum(['low', 'medium', 'high'])
+})),
+  "tokens": zod.object({
+  "started": zod.literal(6),
+  "remaining": zod.int().min(createRoundResponseTwoTokensOneRemainingMin).max(createRoundResponseTwoTokensOneRemainingMax),
+  "interruptions": zod.int().min(createRoundResponseTwoTokensOneInterruptionsMin),
+  "notes": zod.string()
+}).and(zod.object({
+  "points": zod.int().min(createRoundResponseTwoTokensTwoPointsMin)
+})),
+  "inspection": zod.object({
+  "status": zod.enum(['approved', 'rejected', 'unregistered']),
+  "points": zod.int().min(createRoundResponseTwoInspectionPointsMin),
+  "notes": zod.string()
+}),
   "totalScore": zod.int().min(createRoundResponseTwoTotalScoreMin),
   "estimatedScore": zod.int().min(createRoundResponseTwoEstimatedScoreMin),
   "attemptedMissions": zod.int().min(createRoundResponseTwoAttemptedMissionsMin).max(createRoundResponseTwoAttemptedMissionsMax),
   "problemsCount": zod.int().min(createRoundResponseTwoProblemsCountMin),
+  "scoreBreakdown": zod.object({
+  "missionPoints": zod.int().min(createRoundResponseTwoScoreBreakdownMissionPointsMin),
+  "inspectionPoints": zod.int().min(createRoundResponseTwoScoreBreakdownInspectionPointsMin),
+  "tokenPoints": zod.int().min(createRoundResponseTwoScoreBreakdownTokenPointsMin),
+  "total": zod.int().min(createRoundResponseTwoScoreBreakdownTotalMin)
+}),
   "members": zod.array(zod.object({
   "memberId": zod.int(),
   "name": zod.string(),
@@ -359,20 +411,28 @@ export const getRoundResponseOnePlannedDurationSecondsDefault = 150;
 
 export const getRoundResponseOneActualDurationSecondsMin = 0;
 
-export const getRoundResponseOneMissionResultsItemPointsMin = 0;
 
 export const getRoundResponseOneMissionResultsItemCriteriaItemQuantityMin = 0;
-
-export const getRoundResponseOneMissionResultsItemCriteriaItemPointsMin = 0;
 
 export const getRoundResponseOneTokensRemainingMin = 0;
 export const getRoundResponseOneTokensRemainingMax = 6;
 
 export const getRoundResponseOneTokensInterruptionsMin = 0;
 
-export const getRoundResponseOneInspectionPointsMin = 0;
+export const getRoundResponseTwoMissionResultsItemPointsMin = 0;
 
-export const getRoundResponseOneOfficialScoreMin = 0;
+export const getRoundResponseTwoMissionResultsItemCriteriaItemQuantityMin = 0;
+
+export const getRoundResponseTwoMissionResultsItemCriteriaItemPointsMin = 0;
+
+export const getRoundResponseTwoTokensOneRemainingMin = 0;
+export const getRoundResponseTwoTokensOneRemainingMax = 6;
+
+export const getRoundResponseTwoTokensOneInterruptionsMin = 0;
+
+export const getRoundResponseTwoTokensTwoPointsMin = 0;
+
+export const getRoundResponseTwoInspectionPointsMin = 0;
 
 export const getRoundResponseTwoTotalScoreMin = 0;
 
@@ -382,6 +442,14 @@ export const getRoundResponseTwoAttemptedMissionsMin = 0;
 export const getRoundResponseTwoAttemptedMissionsMax = 15;
 
 export const getRoundResponseTwoProblemsCountMin = 0;
+
+export const getRoundResponseTwoScoreBreakdownMissionPointsMin = 0;
+
+export const getRoundResponseTwoScoreBreakdownInspectionPointsMin = 0;
+
+export const getRoundResponseTwoScoreBreakdownTokenPointsMin = 0;
+
+export const getRoundResponseTwoScoreBreakdownTotalMin = 0;
 
 
 
@@ -399,40 +467,71 @@ export const GetRoundResponse = zod.object({
   "fieldConditions": zod.string().optional(),
   "generalNotes": zod.string().optional(),
   "missionResults": zod.array(zod.object({
-  "missionId": zod.int(),
-  "status": zod.enum(['not_attempted', 'failed', 'partial', 'complete', 'bonus', 'not_applicable']),
-  "attempted": zod.boolean(),
-  "points": zod.int().min(getRoundResponseOneMissionResultsItemPointsMin),
+  "missionId": zod.int().min(1),
   "criteria": zod.array(zod.object({
-  "label": zod.string(),
+  "key": zod.string(),
   "achieved": zod.boolean(),
   "quantity": zod.int().min(getRoundResponseOneMissionResultsItemCriteriaItemQuantityMin),
-  "points": zod.int().min(getRoundResponseOneMissionResultsItemCriteriaItemPointsMin)
+  "selection": zod.string().nullable()
 })),
   "failureType": zod.string().nullable(),
   "technicalNotes": zod.string(),
   "confidence": zod.enum(['low', 'medium', 'high'])
-})).optional(),
+})),
   "tokens": zod.object({
   "started": zod.literal(6),
   "remaining": zod.int().min(getRoundResponseOneTokensRemainingMin).max(getRoundResponseOneTokensRemainingMax),
   "interruptions": zod.int().min(getRoundResponseOneTokensInterruptionsMin),
   "notes": zod.string()
-}).optional(),
+}),
   "inspection": zod.object({
   "status": zod.enum(['approved', 'rejected', 'unregistered']),
-  "points": zod.int().min(getRoundResponseOneInspectionPointsMin),
   "notes": zod.string()
-}).optional(),
-  "officialScore": zod.int().min(getRoundResponseOneOfficialScoreMin).nullish(),
+}),
   "officialScoreNotes": zod.string().optional(),
   "status": zod.enum(['draft', 'saved']).optional()
 }).and(zod.object({
   "id": zod.int(),
+  "missionResults": zod.array(zod.object({
+  "missionId": zod.int(),
+  "status": zod.enum(['not_attempted', 'failed', 'partial', 'complete', 'bonus', 'not_applicable']),
+  "attempted": zod.boolean(),
+  "points": zod.int().min(getRoundResponseTwoMissionResultsItemPointsMin),
+  "criteria": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "achieved": zod.boolean(),
+  "quantity": zod.int().min(getRoundResponseTwoMissionResultsItemCriteriaItemQuantityMin),
+  "points": zod.int().min(getRoundResponseTwoMissionResultsItemCriteriaItemPointsMin),
+  "selection": zod.string().nullable()
+})),
+  "failureType": zod.string().nullable(),
+  "technicalNotes": zod.string(),
+  "confidence": zod.enum(['low', 'medium', 'high'])
+})),
+  "tokens": zod.object({
+  "started": zod.literal(6),
+  "remaining": zod.int().min(getRoundResponseTwoTokensOneRemainingMin).max(getRoundResponseTwoTokensOneRemainingMax),
+  "interruptions": zod.int().min(getRoundResponseTwoTokensOneInterruptionsMin),
+  "notes": zod.string()
+}).and(zod.object({
+  "points": zod.int().min(getRoundResponseTwoTokensTwoPointsMin)
+})),
+  "inspection": zod.object({
+  "status": zod.enum(['approved', 'rejected', 'unregistered']),
+  "points": zod.int().min(getRoundResponseTwoInspectionPointsMin),
+  "notes": zod.string()
+}),
   "totalScore": zod.int().min(getRoundResponseTwoTotalScoreMin),
   "estimatedScore": zod.int().min(getRoundResponseTwoEstimatedScoreMin),
   "attemptedMissions": zod.int().min(getRoundResponseTwoAttemptedMissionsMin).max(getRoundResponseTwoAttemptedMissionsMax),
   "problemsCount": zod.int().min(getRoundResponseTwoProblemsCountMin),
+  "scoreBreakdown": zod.object({
+  "missionPoints": zod.int().min(getRoundResponseTwoScoreBreakdownMissionPointsMin),
+  "inspectionPoints": zod.int().min(getRoundResponseTwoScoreBreakdownInspectionPointsMin),
+  "tokenPoints": zod.int().min(getRoundResponseTwoScoreBreakdownTokenPointsMin),
+  "total": zod.int().min(getRoundResponseTwoScoreBreakdownTotalMin)
+}),
   "members": zod.array(zod.object({
   "memberId": zod.int(),
   "name": zod.string(),
@@ -456,20 +555,13 @@ export const UpdateRoundParams = zod.object({
 
 export const updateRoundBodyActualDurationSecondsMin = 0;
 
-export const updateRoundBodyMissionResultsItemPointsMin = 0;
 
 export const updateRoundBodyMissionResultsItemCriteriaItemQuantityMin = 0;
-
-export const updateRoundBodyMissionResultsItemCriteriaItemPointsMin = 0;
 
 export const updateRoundBodyTokensRemainingMin = 0;
 export const updateRoundBodyTokensRemainingMax = 6;
 
 export const updateRoundBodyTokensInterruptionsMin = 0;
-
-export const updateRoundBodyInspectionPointsMin = 0;
-
-export const updateRoundBodyOfficialScoreMin = 0;
 
 
 
@@ -487,15 +579,12 @@ export const UpdateRoundBody = zod.object({
   "fieldConditions": zod.string().optional(),
   "generalNotes": zod.string().optional(),
   "missionResults": zod.array(zod.object({
-  "missionId": zod.int(),
-  "status": zod.enum(['not_attempted', 'failed', 'partial', 'complete', 'bonus', 'not_applicable']),
-  "attempted": zod.boolean(),
-  "points": zod.int().min(updateRoundBodyMissionResultsItemPointsMin),
+  "missionId": zod.int().min(1),
   "criteria": zod.array(zod.object({
-  "label": zod.string(),
+  "key": zod.string(),
   "achieved": zod.boolean(),
   "quantity": zod.int().min(updateRoundBodyMissionResultsItemCriteriaItemQuantityMin),
-  "points": zod.int().min(updateRoundBodyMissionResultsItemCriteriaItemPointsMin)
+  "selection": zod.string().nullable()
 })),
   "failureType": zod.string().nullable(),
   "technicalNotes": zod.string(),
@@ -509,10 +598,8 @@ export const UpdateRoundBody = zod.object({
 }).optional(),
   "inspection": zod.object({
   "status": zod.enum(['approved', 'rejected', 'unregistered']),
-  "points": zod.int().min(updateRoundBodyInspectionPointsMin),
   "notes": zod.string()
 }).optional(),
-  "officialScore": zod.int().min(updateRoundBodyOfficialScoreMin).nullish(),
   "officialScoreNotes": zod.string().optional(),
   "status": zod.enum(['draft', 'saved']).optional()
 })
@@ -521,20 +608,28 @@ export const updateRoundResponseOnePlannedDurationSecondsDefault = 150;
 
 export const updateRoundResponseOneActualDurationSecondsMin = 0;
 
-export const updateRoundResponseOneMissionResultsItemPointsMin = 0;
 
 export const updateRoundResponseOneMissionResultsItemCriteriaItemQuantityMin = 0;
-
-export const updateRoundResponseOneMissionResultsItemCriteriaItemPointsMin = 0;
 
 export const updateRoundResponseOneTokensRemainingMin = 0;
 export const updateRoundResponseOneTokensRemainingMax = 6;
 
 export const updateRoundResponseOneTokensInterruptionsMin = 0;
 
-export const updateRoundResponseOneInspectionPointsMin = 0;
+export const updateRoundResponseTwoMissionResultsItemPointsMin = 0;
 
-export const updateRoundResponseOneOfficialScoreMin = 0;
+export const updateRoundResponseTwoMissionResultsItemCriteriaItemQuantityMin = 0;
+
+export const updateRoundResponseTwoMissionResultsItemCriteriaItemPointsMin = 0;
+
+export const updateRoundResponseTwoTokensOneRemainingMin = 0;
+export const updateRoundResponseTwoTokensOneRemainingMax = 6;
+
+export const updateRoundResponseTwoTokensOneInterruptionsMin = 0;
+
+export const updateRoundResponseTwoTokensTwoPointsMin = 0;
+
+export const updateRoundResponseTwoInspectionPointsMin = 0;
 
 export const updateRoundResponseTwoTotalScoreMin = 0;
 
@@ -544,6 +639,14 @@ export const updateRoundResponseTwoAttemptedMissionsMin = 0;
 export const updateRoundResponseTwoAttemptedMissionsMax = 15;
 
 export const updateRoundResponseTwoProblemsCountMin = 0;
+
+export const updateRoundResponseTwoScoreBreakdownMissionPointsMin = 0;
+
+export const updateRoundResponseTwoScoreBreakdownInspectionPointsMin = 0;
+
+export const updateRoundResponseTwoScoreBreakdownTokenPointsMin = 0;
+
+export const updateRoundResponseTwoScoreBreakdownTotalMin = 0;
 
 
 
@@ -561,40 +664,71 @@ export const UpdateRoundResponse = zod.object({
   "fieldConditions": zod.string().optional(),
   "generalNotes": zod.string().optional(),
   "missionResults": zod.array(zod.object({
-  "missionId": zod.int(),
-  "status": zod.enum(['not_attempted', 'failed', 'partial', 'complete', 'bonus', 'not_applicable']),
-  "attempted": zod.boolean(),
-  "points": zod.int().min(updateRoundResponseOneMissionResultsItemPointsMin),
+  "missionId": zod.int().min(1),
   "criteria": zod.array(zod.object({
-  "label": zod.string(),
+  "key": zod.string(),
   "achieved": zod.boolean(),
   "quantity": zod.int().min(updateRoundResponseOneMissionResultsItemCriteriaItemQuantityMin),
-  "points": zod.int().min(updateRoundResponseOneMissionResultsItemCriteriaItemPointsMin)
+  "selection": zod.string().nullable()
 })),
   "failureType": zod.string().nullable(),
   "technicalNotes": zod.string(),
   "confidence": zod.enum(['low', 'medium', 'high'])
-})).optional(),
+})),
   "tokens": zod.object({
   "started": zod.literal(6),
   "remaining": zod.int().min(updateRoundResponseOneTokensRemainingMin).max(updateRoundResponseOneTokensRemainingMax),
   "interruptions": zod.int().min(updateRoundResponseOneTokensInterruptionsMin),
   "notes": zod.string()
-}).optional(),
+}),
   "inspection": zod.object({
   "status": zod.enum(['approved', 'rejected', 'unregistered']),
-  "points": zod.int().min(updateRoundResponseOneInspectionPointsMin),
   "notes": zod.string()
-}).optional(),
-  "officialScore": zod.int().min(updateRoundResponseOneOfficialScoreMin).nullish(),
+}),
   "officialScoreNotes": zod.string().optional(),
   "status": zod.enum(['draft', 'saved']).optional()
 }).and(zod.object({
   "id": zod.int(),
+  "missionResults": zod.array(zod.object({
+  "missionId": zod.int(),
+  "status": zod.enum(['not_attempted', 'failed', 'partial', 'complete', 'bonus', 'not_applicable']),
+  "attempted": zod.boolean(),
+  "points": zod.int().min(updateRoundResponseTwoMissionResultsItemPointsMin),
+  "criteria": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "achieved": zod.boolean(),
+  "quantity": zod.int().min(updateRoundResponseTwoMissionResultsItemCriteriaItemQuantityMin),
+  "points": zod.int().min(updateRoundResponseTwoMissionResultsItemCriteriaItemPointsMin),
+  "selection": zod.string().nullable()
+})),
+  "failureType": zod.string().nullable(),
+  "technicalNotes": zod.string(),
+  "confidence": zod.enum(['low', 'medium', 'high'])
+})),
+  "tokens": zod.object({
+  "started": zod.literal(6),
+  "remaining": zod.int().min(updateRoundResponseTwoTokensOneRemainingMin).max(updateRoundResponseTwoTokensOneRemainingMax),
+  "interruptions": zod.int().min(updateRoundResponseTwoTokensOneInterruptionsMin),
+  "notes": zod.string()
+}).and(zod.object({
+  "points": zod.int().min(updateRoundResponseTwoTokensTwoPointsMin)
+})),
+  "inspection": zod.object({
+  "status": zod.enum(['approved', 'rejected', 'unregistered']),
+  "points": zod.int().min(updateRoundResponseTwoInspectionPointsMin),
+  "notes": zod.string()
+}),
   "totalScore": zod.int().min(updateRoundResponseTwoTotalScoreMin),
   "estimatedScore": zod.int().min(updateRoundResponseTwoEstimatedScoreMin),
   "attemptedMissions": zod.int().min(updateRoundResponseTwoAttemptedMissionsMin).max(updateRoundResponseTwoAttemptedMissionsMax),
   "problemsCount": zod.int().min(updateRoundResponseTwoProblemsCountMin),
+  "scoreBreakdown": zod.object({
+  "missionPoints": zod.int().min(updateRoundResponseTwoScoreBreakdownMissionPointsMin),
+  "inspectionPoints": zod.int().min(updateRoundResponseTwoScoreBreakdownInspectionPointsMin),
+  "tokenPoints": zod.int().min(updateRoundResponseTwoScoreBreakdownTokenPointsMin),
+  "total": zod.int().min(updateRoundResponseTwoScoreBreakdownTotalMin)
+}),
   "members": zod.array(zod.object({
   "memberId": zod.int(),
   "name": zod.string(),
@@ -632,20 +766,28 @@ export const duplicateRoundResponseOnePlannedDurationSecondsDefault = 150;
 
 export const duplicateRoundResponseOneActualDurationSecondsMin = 0;
 
-export const duplicateRoundResponseOneMissionResultsItemPointsMin = 0;
 
 export const duplicateRoundResponseOneMissionResultsItemCriteriaItemQuantityMin = 0;
-
-export const duplicateRoundResponseOneMissionResultsItemCriteriaItemPointsMin = 0;
 
 export const duplicateRoundResponseOneTokensRemainingMin = 0;
 export const duplicateRoundResponseOneTokensRemainingMax = 6;
 
 export const duplicateRoundResponseOneTokensInterruptionsMin = 0;
 
-export const duplicateRoundResponseOneInspectionPointsMin = 0;
+export const duplicateRoundResponseTwoMissionResultsItemPointsMin = 0;
 
-export const duplicateRoundResponseOneOfficialScoreMin = 0;
+export const duplicateRoundResponseTwoMissionResultsItemCriteriaItemQuantityMin = 0;
+
+export const duplicateRoundResponseTwoMissionResultsItemCriteriaItemPointsMin = 0;
+
+export const duplicateRoundResponseTwoTokensOneRemainingMin = 0;
+export const duplicateRoundResponseTwoTokensOneRemainingMax = 6;
+
+export const duplicateRoundResponseTwoTokensOneInterruptionsMin = 0;
+
+export const duplicateRoundResponseTwoTokensTwoPointsMin = 0;
+
+export const duplicateRoundResponseTwoInspectionPointsMin = 0;
 
 export const duplicateRoundResponseTwoTotalScoreMin = 0;
 
@@ -655,6 +797,14 @@ export const duplicateRoundResponseTwoAttemptedMissionsMin = 0;
 export const duplicateRoundResponseTwoAttemptedMissionsMax = 15;
 
 export const duplicateRoundResponseTwoProblemsCountMin = 0;
+
+export const duplicateRoundResponseTwoScoreBreakdownMissionPointsMin = 0;
+
+export const duplicateRoundResponseTwoScoreBreakdownInspectionPointsMin = 0;
+
+export const duplicateRoundResponseTwoScoreBreakdownTokenPointsMin = 0;
+
+export const duplicateRoundResponseTwoScoreBreakdownTotalMin = 0;
 
 
 
@@ -672,40 +822,71 @@ export const DuplicateRoundResponse = zod.object({
   "fieldConditions": zod.string().optional(),
   "generalNotes": zod.string().optional(),
   "missionResults": zod.array(zod.object({
-  "missionId": zod.int(),
-  "status": zod.enum(['not_attempted', 'failed', 'partial', 'complete', 'bonus', 'not_applicable']),
-  "attempted": zod.boolean(),
-  "points": zod.int().min(duplicateRoundResponseOneMissionResultsItemPointsMin),
+  "missionId": zod.int().min(1),
   "criteria": zod.array(zod.object({
-  "label": zod.string(),
+  "key": zod.string(),
   "achieved": zod.boolean(),
   "quantity": zod.int().min(duplicateRoundResponseOneMissionResultsItemCriteriaItemQuantityMin),
-  "points": zod.int().min(duplicateRoundResponseOneMissionResultsItemCriteriaItemPointsMin)
+  "selection": zod.string().nullable()
 })),
   "failureType": zod.string().nullable(),
   "technicalNotes": zod.string(),
   "confidence": zod.enum(['low', 'medium', 'high'])
-})).optional(),
+})),
   "tokens": zod.object({
   "started": zod.literal(6),
   "remaining": zod.int().min(duplicateRoundResponseOneTokensRemainingMin).max(duplicateRoundResponseOneTokensRemainingMax),
   "interruptions": zod.int().min(duplicateRoundResponseOneTokensInterruptionsMin),
   "notes": zod.string()
-}).optional(),
+}),
   "inspection": zod.object({
   "status": zod.enum(['approved', 'rejected', 'unregistered']),
-  "points": zod.int().min(duplicateRoundResponseOneInspectionPointsMin),
   "notes": zod.string()
-}).optional(),
-  "officialScore": zod.int().min(duplicateRoundResponseOneOfficialScoreMin).nullish(),
+}),
   "officialScoreNotes": zod.string().optional(),
   "status": zod.enum(['draft', 'saved']).optional()
 }).and(zod.object({
   "id": zod.int(),
+  "missionResults": zod.array(zod.object({
+  "missionId": zod.int(),
+  "status": zod.enum(['not_attempted', 'failed', 'partial', 'complete', 'bonus', 'not_applicable']),
+  "attempted": zod.boolean(),
+  "points": zod.int().min(duplicateRoundResponseTwoMissionResultsItemPointsMin),
+  "criteria": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "achieved": zod.boolean(),
+  "quantity": zod.int().min(duplicateRoundResponseTwoMissionResultsItemCriteriaItemQuantityMin),
+  "points": zod.int().min(duplicateRoundResponseTwoMissionResultsItemCriteriaItemPointsMin),
+  "selection": zod.string().nullable()
+})),
+  "failureType": zod.string().nullable(),
+  "technicalNotes": zod.string(),
+  "confidence": zod.enum(['low', 'medium', 'high'])
+})),
+  "tokens": zod.object({
+  "started": zod.literal(6),
+  "remaining": zod.int().min(duplicateRoundResponseTwoTokensOneRemainingMin).max(duplicateRoundResponseTwoTokensOneRemainingMax),
+  "interruptions": zod.int().min(duplicateRoundResponseTwoTokensOneInterruptionsMin),
+  "notes": zod.string()
+}).and(zod.object({
+  "points": zod.int().min(duplicateRoundResponseTwoTokensTwoPointsMin)
+})),
+  "inspection": zod.object({
+  "status": zod.enum(['approved', 'rejected', 'unregistered']),
+  "points": zod.int().min(duplicateRoundResponseTwoInspectionPointsMin),
+  "notes": zod.string()
+}),
   "totalScore": zod.int().min(duplicateRoundResponseTwoTotalScoreMin),
   "estimatedScore": zod.int().min(duplicateRoundResponseTwoEstimatedScoreMin),
   "attemptedMissions": zod.int().min(duplicateRoundResponseTwoAttemptedMissionsMin).max(duplicateRoundResponseTwoAttemptedMissionsMax),
   "problemsCount": zod.int().min(duplicateRoundResponseTwoProblemsCountMin),
+  "scoreBreakdown": zod.object({
+  "missionPoints": zod.int().min(duplicateRoundResponseTwoScoreBreakdownMissionPointsMin),
+  "inspectionPoints": zod.int().min(duplicateRoundResponseTwoScoreBreakdownInspectionPointsMin),
+  "tokenPoints": zod.int().min(duplicateRoundResponseTwoScoreBreakdownTokenPointsMin),
+  "total": zod.int().min(duplicateRoundResponseTwoScoreBreakdownTotalMin)
+}),
   "members": zod.array(zod.object({
   "memberId": zod.int(),
   "name": zod.string(),

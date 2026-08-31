@@ -5,11 +5,18 @@
  * API do TechEra BIOGLOW Tracker
  * OpenAPI spec version: 0.1.0
  */
+import type { Inspection } from './inspection';
+import type { MissionResult } from './missionResult';
 import type { RoundInput } from './roundInput';
 import type { RoundMember } from './roundMember';
+import type { ScoreBreakdown } from './scoreBreakdown';
+import type { Tokens } from './tokens';
 
 export type Round = RoundInput & {
   id: number;
+  missionResults: MissionResult[];
+  tokens: Tokens;
+  inspection: Inspection;
   /** @minimum 0 */
   totalScore: number;
   /** @minimum 0 */
@@ -21,6 +28,7 @@ export type Round = RoundInput & {
   attemptedMissions: number;
   /** @minimum 0 */
   problemsCount: number;
+  scoreBreakdown: ScoreBreakdown;
   members: RoundMember[];
   createdAt: Date;
   updatedAt: Date;

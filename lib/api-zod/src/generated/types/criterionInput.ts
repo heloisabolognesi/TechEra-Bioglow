@@ -5,9 +5,12 @@
  * API do TechEra BIOGLOW Tracker
  * OpenAPI spec version: 0.1.0
  */
-import type { TokensInput } from './tokensInput';
 
-export type Tokens = TokensInput & {
+export interface CriterionInput {
+  key: string;
+  achieved: boolean;
   /** @minimum 0 */
-  points: number;
-};
+  quantity: number;
+  /** @nullable */
+  selection: string | null;
+}

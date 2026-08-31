@@ -15,14 +15,12 @@ export type TeamSeasonName = typeof TeamSeasonName[keyof typeof TeamSeasonName];
 export const TeamSeasonName = {
   'BIOGLOW_2026–2027': 'BIOGLOW 2026–2027',
 } as const;
-
 export type TeamDivision = typeof TeamDivision[keyof typeof TeamDivision];
 
 
 export const TeamDivision = {
   Challenge: 'Challenge',
 } as const;
-
 export interface Team {
   id: number;
   name: string;
@@ -75,6 +73,34 @@ export const MissionScoreConfigStatus = {
   verified: 'verified',
 } as const;
 
+export type MissionScoringRuleInputKind = typeof MissionScoringRuleInputKind[keyof typeof MissionScoringRuleInputKind];
+
+
+export const MissionScoringRuleInputKind = {
+  boolean: 'boolean',
+  quantity: 'quantity',
+  select: 'select',
+} as const;
+
+export interface MissionScoringOption {
+  value: string;
+  label: string;
+  /** @minimum 0 */
+  points: number;
+}
+
+export interface MissionScoringRule {
+  key: string;
+  label: string;
+  /** @minimum 0 */
+  points: number;
+  perUnit: boolean;
+  inputKind: MissionScoringRuleInputKind;
+  options: MissionScoringOption[];
+  /** @nullable */
+  helper: string | null;
+}
+
 export interface Mission {
   id: number;
   /**
@@ -91,15 +117,47 @@ export interface Mission {
   /** @nullable */
   warning: string | null;
   sourceReference: string;
+  scoringRules: MissionScoringRule[];
+}
+
+export interface CriterionInput {
+  key: string;
+  achieved: boolean;
+  /** @minimum 0 */
+  quantity: number;
+  /** @nullable */
+  selection: string | null;
 }
 
 export interface CriterionResult {
+  key: string;
   label: string;
   achieved: boolean;
   /** @minimum 0 */
   quantity: number;
   /** @minimum 0 */
   points: number;
+  /** @nullable */
+  selection: string | null;
+}
+
+export type MissionResultInputConfidence = typeof MissionResultInputConfidence[keyof typeof MissionResultInputConfidence];
+
+
+export const MissionResultInputConfidence = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+} as const;
+
+export interface MissionResultInput {
+  /** @minimum 1 */
+  missionId: number;
+  criteria: CriterionInput[];
+  /** @nullable */
+  failureType: string | null;
+  technicalNotes: string;
+  confidence: MissionResultInputConfidence;
 }
 
 export type MissionResultStatus = typeof MissionResultStatus[keyof typeof MissionResultStatus];
@@ -159,15 +217,29 @@ export interface Inspection {
   notes: string;
 }
 
-export type TokensStarted = typeof TokensStarted[keyof typeof TokensStarted];
+export type InspectionInputStatus = typeof InspectionInputStatus[keyof typeof InspectionInputStatus];
 
 
-export const TokensStarted = {
+export const InspectionInputStatus = {
+  approved: 'approved',
+  rejected: 'rejected',
+  unregistered: 'unregistered',
+} as const;
+
+export interface InspectionInput {
+  status: InspectionInputStatus;
+  notes: string;
+}
+
+export type TokensInputStarted = typeof TokensInputStarted[keyof typeof TokensInputStarted];
+
+
+export const TokensInputStarted = {
   NUMBER_6: 6,
 } as const;
 
-export interface Tokens {
-  started: TokensStarted;
+export interface TokensInput {
+  started: TokensInputStarted;
   /**
      * @minimum 0
      * @maximum 6
@@ -176,6 +248,22 @@ export interface Tokens {
   /** @minimum 0 */
   interruptions: number;
   notes: string;
+}
+
+export type Tokens = TokensInput & {
+  /** @minimum 0 */
+  points: number;
+};
+
+export interface ScoreBreakdown {
+  /** @minimum 0 */
+  missionPoints: number;
+  /** @minimum 0 */
+  inspectionPoints: number;
+  /** @minimum 0 */
+  tokenPoints: number;
+  /** @minimum 0 */
+  total: number;
 }
 
 export type RoundInputType = typeof RoundInputType[keyof typeof RoundInputType];
@@ -220,14 +308,9 @@ export interface RoundInput {
   fieldSetup?: string;
   fieldConditions?: string;
   generalNotes?: string;
-  missionResults?: MissionResult[];
-  tokens?: Tokens;
-  inspection?: Inspection;
-  /**
-     * @minimum 0
-     * @nullable
-     */
-  officialScore?: number | null;
+  missionResults?: MissionResultInput[];
+  tokens?: TokensInput;
+  inspection?: InspectionInput;
   officialScoreNotes?: string;
   status?: RoundInputStatus;
 }
@@ -274,20 +357,18 @@ export interface RoundUpdate {
   fieldSetup?: string;
   fieldConditions?: string;
   generalNotes?: string;
-  missionResults?: MissionResult[];
-  tokens?: Tokens;
-  inspection?: Inspection;
-  /**
-     * @minimum 0
-     * @nullable
-     */
-  officialScore?: number | null;
+  missionResults?: MissionResultInput[];
+  tokens?: TokensInput;
+  inspection?: InspectionInput;
   officialScoreNotes?: string;
   status?: RoundUpdateStatus;
 }
 
 export type Round = RoundInput & {
   id: number;
+  missionResults: MissionResult[];
+  tokens: Tokens;
+  inspection: Inspection;
   /** @minimum 0 */
   totalScore: number;
   /** @minimum 0 */
@@ -299,6 +380,7 @@ export type Round = RoundInput & {
   attemptedMissions: number;
   /** @minimum 0 */
   problemsCount: number;
+  scoreBreakdown: ScoreBreakdown;
   members: RoundMember[];
   createdAt: string;
   updatedAt: string;
@@ -422,8 +504,6 @@ format: ExportRoundsFormat;
 };
 
 export type ExportRoundsFormat = typeof ExportRoundsFormat[keyof typeof ExportRoundsFormat];
-
-
 export const ExportRoundsFormat = {
   csv: 'csv',
   json: 'json',

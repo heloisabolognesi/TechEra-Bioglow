@@ -5,9 +5,10 @@
  * API do TechEra BIOGLOW Tracker
  * OpenAPI spec version: 0.1.0
  */
-import type { TokensInput } from './tokensInput';
 
-export type Tokens = TokensInput & {
+export interface MissionScoringOption {
+  value: string;
+  label: string;
   /** @minimum 0 */
   points: number;
-};
+}

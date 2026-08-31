@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { MissionScoreConfigStatus } from './missionScoreConfigStatus';
+import type { MissionScoringRule } from './missionScoringRule';
 
 export interface Mission {
   id: number;
@@ -23,4 +24,5 @@ export interface Mission {
   /** @nullable */
   warning: string | null;
   sourceReference: string;
+  scoringRules: MissionScoringRule[];
 }

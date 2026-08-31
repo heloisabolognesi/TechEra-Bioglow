@@ -179,6 +179,40 @@ function RoundRow({ round }: { round: any }) {
   );
 }
 
+const tokenPointsByRemaining: Record<number, number> = { 0: 0, 1: 10, 2: 15, 3: 25, 4: 35, 5: 50, 6: 50 };
+
+function defaultCriterion(rule: any) {
+  return {
+    key: rule.key,
+    achieved: false,
+    quantity: 0,
+    selection: rule.inputKind === 'select' ? (rule.options?.[0]?.value || 'none') : null,
+  };
+}
+
+function clientCriterionPoints(mission: any, rule: any, value: any, criteria: Record<string, any>) {
+  if (rule.inputKind === 'quantity') return Math.max(0, Number(value?.quantity || 0)) * rule.points;
+  if (rule.inputKind === 'select') return rule.options?.find((option: any) => option.value === value?.selection)?.points || 0;
+  if (mission.number === 4 && rule.key === 'first_leaf_removed' && (criteria.second_leaf_removed?.achieved || criteria.third_leaf_removed?.achieved)) return rule.points;
+  if (mission.number === 4 && rule.key === 'second_leaf_removed' && criteria.third_leaf_removed?.achieved && !criteria.hope_removed_from_nest?.achieved) return rule.points;
+  if (mission.number === 4 && rule.key === 'second_leaf_removed' && criteria.hope_removed_from_nest?.achieved) return 0;
+  if (mission.number === 4 && rule.key === 'hope_returned_to_leaf_habitat' && !criteria.hope_removed_from_nest?.achieved) return 0;
+  return value?.achieved ? rule.points : 0;
+}
+
+function clientMissionPoints(mission: any, criteria: Record<string, any>) {
+  return (mission.scoringRules || []).reduce((total: number, rule: any) =>
+    total + clientCriterionPoints(mission, rule, criteria[rule.key], criteria), 0);
+}
+
+function criterionIsAttempted(rule: any, value: any) {
+  return rule.inputKind === 'quantity'
+    ? Number(value?.quantity || 0) > 0
+    : rule.inputKind === 'select'
+      ? value?.selection && value.selection !== 'none'
+      : Boolean(value?.achieved);
+}
+
 function Overview() {
   const dashboard = useGetDashboard();
   if (dashboard.isLoading) return <div className="content"><LoadingState /></div>;
@@ -236,7 +270,9 @@ function NewRound() {
   const [roundType, setRoundType] = useState('training');
   const [memberIds, setMemberIds] = useState<number[]>([]);
   const [notes, setNotes] = useState('');
-  const [results, setResults] = useState<Record<number, any>>({});
+  const [results, setResults] = useState<Record<number, Record<string, any>>>({});
+  const [tokensRemaining, setTokensRemaining] = useState(6);
+  const [inspectionStatus, setInspectionStatus] = useState('unregistered');
   useEffect(() => {
     if (!running) return;
     const timer = window.setInterval(() => setElapsed((seconds) => seconds + 1), 1000);
@@ -245,19 +281,39 @@ function NewRound() {
   const list: any[] = missions.data || [];
   const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
   const secs = String(elapsed % 60).padStart(2, '0');
-  const setResult = (id: number, patch: any) => setResults((old) => ({
+  const setCriterion = (missionId: number, rule: any, patch: any) => setResults((old) => ({
     ...old,
-    [id]: { missionId: id, status: 'not_attempted', attempted: false, points: 0, criteria: [], failureType: null, technicalNotes: '', confidence: 'medium', ...old[id], ...patch },
+    [missionId]: {
+      ...(old[missionId] || {}),
+      [rule.key]: { ...defaultCriterion(rule), ...(old[missionId]?.[rule.key] || {}), ...patch },
+    },
   }));
-  const attempted = Object.values(results).filter((result: any) => result.attempted).length;
-  const score = Object.values(results).reduce((total: number, result: any) => total + Number(result.points || 0), 0);
+  const missionInputs = list.map((mission: any) => {
+    const criteria = mission.scoringRules?.reduce((all: Record<string, any>, rule: any) => {
+      all[rule.key] = { ...defaultCriterion(rule), ...(results[mission.id]?.[rule.key] || {}) };
+      return all;
+    }, {}) || {};
+    return { mission, criteria };
+  });
+  const attempted = missionInputs.filter(({ mission, criteria }) =>
+    (mission.scoringRules || []).some((rule: any) => criterionIsAttempted(rule, criteria[rule.key]))).length;
+  const missionScore = missionInputs.reduce((total, { mission, criteria }) => total + clientMissionPoints(mission, criteria), 0);
+  const inspectionPoints = inspectionStatus === 'approved' ? 20 : 0;
+  const score = missionScore + inspectionPoints + tokenPointsByRemaining[tokensRemaining];
   const save = () => create.mutate({
     data: {
       dateTime: new Date().toISOString(), type: roundType, seasonName: 'BIOGLOW 2026–2027', event, memberIds,
       plannedDurationSeconds: 150, actualDurationSeconds: elapsed, robotVersion: 'Versão atual',
-      fieldSetup: '', fieldConditions: '', generalNotes: notes, missionResults: Object.values(results),
-      tokens: { started: 6, remaining: 6, interruptions: 0, notes: '' },
-      inspection: { status: 'unregistered', points: 0, notes: '' }, officialScore: null,
+      fieldSetup: '', fieldConditions: '', generalNotes: notes,
+      missionResults: missionInputs.map(({ mission, criteria }) => ({
+        missionId: mission.id,
+        criteria: Object.values(criteria),
+        failureType: null,
+        technicalNotes: '',
+        confidence: 'medium',
+      })),
+      tokens: { started: 6, remaining: tokensRemaining, interruptions: 0, notes: '' },
+      inspection: { status: inspectionStatus, notes: '' },
       officialScoreNotes: '', status: 'saved',
     } as any,
   }, {
@@ -276,17 +332,39 @@ function NewRound() {
               <div className="field"><label htmlFor="round-event">Nome da sessão</label><input id="round-event" className="input" value={event} onChange={(inputEvent) => setEvent(inputEvent.target.value)} data-testid="input-round-event" /></div>
               <div className="field"><label htmlFor="round-type">Tipo de round</label><select id="round-type" className="select" value={roundType} onChange={(selectEvent) => setRoundType(selectEvent.target.value)} data-testid="select-round-type"><option value="training">Treino</option><option value="simulation">Simulação</option><option value="official">Oficial</option></select></div>
               <div className="field full"><label>Equipe na mesa</label><div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>{(members.data || []).filter((member: any) => member.active).map((member: any) => <button type="button" key={member.id} className={`button ${memberIds.includes(member.id) ? 'button-primary' : 'button-ghost'}`} onClick={() => setMemberIds((ids) => ids.includes(member.id) ? ids.filter((id) => id !== member.id) : [...ids, member.id])} data-testid={`button-member-${member.id}`}>{memberIds.includes(member.id) && <Check size={12} />}{member.nickname || member.name}</button>)}</div><small>{memberIds.length ? `${memberIds.length} integrante${memberIds.length === 1 ? '' : 's'} selecionado${memberIds.length === 1 ? '' : 's'}` : 'Selecione quem está executando esta sessão'}</small></div>
+              <div className="field"><label htmlFor="inspection-status">Inspeção de equipamento</label><select id="inspection-status" className="select" value={inspectionStatus} onChange={(event) => setInspectionStatus(event.target.value)} data-testid="select-inspection-status"><option value="unregistered">Não registrada</option><option value="rejected">Não aprovada</option><option value="approved">Aprovada — 20 pontos</option></select><small>Equipamento em apenas uma área de lançamento pontua 20.</small></div>
+              <div className="field"><label htmlFor="tokens-remaining">Tokens de precisão restantes</label><select id="tokens-remaining" className="select" value={tokensRemaining} onChange={(event) => setTokensRemaining(Number(event.target.value))} data-testid="select-tokens-remaining">{[6, 5, 4, 3, 2, 1, 0].map((value) => <option key={value} value={value}>{value} tokens — {tokenPointsByRemaining[value]} pontos</option>)}</select><small>O valor é fixo conforme a tabela oficial.</small></div>
             </div>
           </section>
           <section className="card capture-card">
             <div className="capture-toolbar"><div><div className="eyebrow">Resultados das missões</div><h2>O que aconteceu em campo?</h2></div><div style={{ display: 'flex', gap: 7 }}><button className={`button ${running ? 'button-danger' : 'button-lime'}`} onClick={() => setRunning((value) => !value)} data-testid="button-toggle-timer">{running ? <><Pause size={14} />Pausar</> : <><Play size={14} />Iniciar cronômetro</>}</button><button className="button button-ghost" onClick={() => { setElapsed(0); setRunning(false); }} data-testid="button-reset-timer"><TimerReset size={14} /></button></div></div>
-            <div className="mission-grid">{list.length ? list.map((mission: any) => { const result = results[mission.id] || {}; const chosen = !!result.attempted; return <div className={`mission-entry ${chosen ? 'selected' : ''}`} key={mission.id}><div className="mission-number">{mission.number}</div><div><strong>{mission.code} · {mission.name}</strong><p>{mission.description}</p></div><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><input type="number" min="0" max={mission.maxPoints || undefined} className="input score-input" placeholder="0" value={result.points ?? ''} onChange={(inputEvent) => setResult(mission.id, { points: Number(inputEvent.target.value), attempted: true, status: 'partial' })} data-testid={`input-mission-score-${mission.id}`} /><button className={`button ${chosen ? 'button-primary' : 'button-ghost'}`} style={{ padding: 8 }} onClick={() => setResult(mission.id, { attempted: !chosen, status: !chosen ? 'partial' : 'not_attempted' })} data-testid={`button-mission-attempt-${mission.id}`}>{chosen ? <Check size={14} /> : <Plus size={14} />}</button></div></div>; }) : <EmptyState title="Catálogo de missões indisponível" body="A configuração das missões ainda está carregando ou não pôde ser acessada." />}</div>
+            <div className="mission-grid">{list.length ? list.map((mission: any) => {
+              const criteria = missionInputs.find(({ mission: item }) => item.id === mission.id)?.criteria || {};
+              const subtotal = clientMissionPoints(mission, criteria);
+              const attemptedMission = (mission.scoringRules || []).some((rule: any) => criterionIsAttempted(rule, criteria[rule.key]));
+              return <div className={`mission-entry ${attemptedMission ? 'selected' : ''}`} key={mission.id}>
+                <div className="mission-number">{String(mission.number).padStart(2, '0')}</div>
+                <div style={{ minWidth: 0, flex: 1 }}><strong>{mission.code} · {mission.name}</strong><p>{mission.description}</p>{mission.warning && <div className="notice" style={{ marginTop: 8 }}><CircleHelp size={13} />{mission.warning}</div>}
+                  <div className="grid" style={{ gap: 7, marginTop: 12 }}>{(mission.scoringRules || []).map((rule: any) => {
+                    const value = criteria[rule.key] || defaultCriterion(rule);
+                    const points = clientCriterionPoints(mission, rule, value, criteria);
+                    return <div key={rule.key} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      {rule.inputKind === 'boolean' && <button type="button" className={`button ${value.achieved ? 'button-primary' : 'button-ghost'}`} style={{ padding: '7px 9px', flex: '1 1 280px', justifyContent: 'flex-start' }} onClick={() => setCriterion(mission.id, rule, { achieved: !value.achieved })} data-testid={`button-condition-${mission.id}-${rule.key}`}>{value.achieved ? <Check size={13} /> : <Plus size={13} />}<span>{rule.label}</span></button>}
+                      {rule.inputKind === 'quantity' && <><label style={{ flex: '1 1 280px', fontSize: 12 }}>{rule.label}<input type="number" min="0" step="1" className="input" style={{ marginTop: 5 }} value={value.quantity || ''} onChange={(event) => setCriterion(mission.id, rule, { quantity: Math.max(0, Number(event.target.value) || 0), achieved: Number(event.target.value) > 0 })} data-testid={`input-condition-${mission.id}-${rule.key}`} /></label></>}
+                      {rule.inputKind === 'select' && <label style={{ flex: '1 1 280px', fontSize: 12 }}>{rule.label}<select className="select" style={{ marginTop: 5 }} value={value.selection || 'none'} onChange={(event) => setCriterion(mission.id, rule, { selection: event.target.value, achieved: event.target.value !== 'none' })} data-testid={`select-condition-${mission.id}-${rule.key}`}>{rule.options.map((option: any) => <option key={option.value} value={option.value}>{option.label}{option.points ? ` — ${option.points} pontos` : ''}</option>)}</select></label>}
+                      <span className="status-chip" style={{ minWidth: 78, textAlign: 'center' }}>{points} pts</span>
+                    </div>;
+                  })}</div>
+                </div>
+                <div className="score" title="Calculado automaticamente pelas condições oficiais">{subtotal}</div>
+              </div>;
+            }) : <EmptyState title="Catálogo de missões indisponível" body="A configuração das missões ainda está carregando ou não pôde ser acessada." />}</div>
           </section>
           <section className="card capture-card"><div className="field"><label htmlFor="round-notes">Notas do round</label><textarea id="round-notes" className="textarea" value={notes} onChange={(inputEvent) => setNotes(inputEvent.target.value)} placeholder="Uma observação útil para o próximo round…" data-testid="textarea-round-notes" /></div></section>
         </div>
         <aside className="grid side-sticky">
           <div className="summary-total"><div className="eyebrow">Estimativa ao vivo</div><div className="total" data-testid="text-live-score">{score}</div><span>pontos estimados · BIOGLOW 2026–2027</span></div>
-          <div className="card" style={{ padding: 20 }}><div className="card-head" style={{ padding: 0, marginBottom: 14 }}><h3>Pulso da execução</h3><Gauge size={17} color="hsl(var(--primary))" /></div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Tentadas</strong><p>missões registradas</p></div><b>{attempted}/15</b></div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Tempo em campo</strong><p>meta 02:30</p></div><b>{mins}:{secs}</b></div><div className="setting-row" style={{ padding: '12px 0 0' }}><div><strong>Tokens</strong><p>disponíveis no início</p></div><b>6</b></div></div>
+           <div className="card" style={{ padding: 20 }}><div className="card-head" style={{ padding: 0, marginBottom: 14 }}><h3>Pulso da execução</h3><Gauge size={17} color="hsl(var(--primary))" /></div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Tentadas</strong><p>missões registradas</p></div><b>{attempted}/15</b></div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Tempo em campo</strong><p>meta 02:30</p></div><b>{mins}:{secs}</b></div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Tokens restantes</strong><p>pontuação oficial</p></div><b>{tokensRemaining} · {tokenPointsByRemaining[tokensRemaining]} pts</b></div><div className="setting-row" style={{ padding: '12px 0 0' }}><div><strong>Inspeção</strong><p>equipamento em uma área</p></div><b>{inspectionPoints} pts</b></div></div>
           <div className="notice"><CircleHelp size={15} />Os detalhes da pontuação podem ser enriquecidos na tela do round depois de salvar.</div>
         </aside>
       </div>
@@ -340,11 +418,11 @@ function RoundDetail() {
       <div className="grid two-col">
         <div className="grid">
           <section className="card" style={{ padding: 24 }}><div className="eyebrow">Resultado do round</div><div className="detail-score"><b data-testid="text-round-total-score">{round.totalScore ?? 0}</b><span>pontos no total</span></div><div style={{ display: 'flex', gap: 12, marginTop: 13, flexWrap: 'wrap' }}><span className="status-chip">{round.attemptedMissions ?? 0} missões tentadas</span><span className="status-chip">{round.problemsCount ?? 0} problemas registrados</span><span className={`status-chip ${round.status}`}>{formatStatus(round.status)}</span></div></section>
-          <section className="card"><div className="card-head"><div><h2>Leitura das missões</h2><span className="muted">Resultados registrados na mesa</span></div><Target size={17} color="hsl(var(--primary))" /></div><div className="card-body"><div className="round-list">{results.length ? results.map((mission: any) => <div className="round-row" key={mission.missionId}><div><div className="round-title">Missão {mission.missionId}</div><div className="round-meta">{mission.technicalNotes || 'Nenhuma nota técnica registrada'}</div></div><div className="score">{mission.points ?? 0}</div><span className={`status-chip ${mission.status === 'complete' || mission.status === 'bonus' ? 'complete' : mission.status === 'not_attempted' ? '' : 'pending'}`}>{formatStatus(mission.status)}</span></div>) : <EmptyState title="Nenhum detalhe de missão" body="Este round foi salvo sem resultados individuais das missões." />}</div></div></section>
+          <section className="card"><div className="card-head"><div><h2>Leitura das missões</h2><span className="muted">Cada condição e subtotal calculados pelo regulamento oficial</span></div><Target size={17} color="hsl(var(--primary))" /></div><div className="card-body"><div className="round-list">{results.length ? results.map((mission: any) => <div className="round-row" key={mission.missionId}><div style={{ flex: 1 }}><div className="round-title">Missão {String(mission.missionId).padStart(2, '0')}</div><div className="grid" style={{ gap: 4, marginTop: 7 }}>{(mission.criteria || []).map((criterion: any) => <div key={criterion.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 11, color: 'hsl(var(--muted-foreground))' }}><span>{criterion.label}{criterion.quantity > 1 ? ` · ${criterion.quantity} unidades` : ''}</span><b style={{ color: criterion.points ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))' }}>{criterion.points} pts</b></div>)}</div><div className="round-meta" style={{ marginTop: 7 }}>{mission.technicalNotes || 'Nenhuma nota técnica registrada'}</div></div><div className="score" title="Subtotal oficial da missão">{mission.points ?? 0}</div><span className={`status-chip ${mission.status === 'complete' || mission.status === 'bonus' ? 'complete' : mission.status === 'not_attempted' ? '' : 'pending'}`}>{formatStatus(mission.status)}</span></div>) : <EmptyState title="Nenhum detalhe de missão" body="Este round foi salvo sem resultados individuais das missões." />}</div></div></section>
         </div>
         <aside className="grid">
           <div className="card" style={{ padding: 21 }}><div className="card-head" style={{ padding: 0, marginBottom: 14 }}><h3>Notas do round</h3><FileText size={16} color="hsl(var(--primary))" /></div>{editing ? <><textarea className="textarea" value={notes} onChange={(event) => setNotes(event.target.value)} data-testid="textarea-edit-round-notes" /><button className="button button-primary" style={{ marginTop: 10 }} onClick={saveNotes} disabled={update.isPending} data-testid="button-save-round-notes">{update.isPending ? 'Salvando…' : 'Salvar notas'}</button></> : <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12, lineHeight: 1.7 }}>{round.generalNotes || 'Nenhuma nota adicionada a este round.'}</p>}</div>
-          <div className="card" style={{ padding: 21 }}><div className="eyebrow">Condições de campo</div><div className="setting-row"><div><strong>Montagem</strong><p>{round.fieldSetup || 'Não registrada'}</p></div></div><div className="setting-row"><div><strong>Condições</strong><p>{round.fieldConditions || 'Não registradas'}</p></div></div><div className="setting-row"><div><strong>Tokens restantes</strong><p>ao fim do round</p></div><b>{round.tokens?.remaining ?? '—'}</b></div></div>
+           <div className="card" style={{ padding: 21 }}><div className="eyebrow">Resumo oficial da pontuação</div><div className="setting-row"><div><strong>Missões</strong><p>condições cumpridas</p></div><b>{round.scoreBreakdown?.missionPoints ?? 0} pts</b></div><div className="setting-row"><div><strong>Inspeção</strong><p>equipamento em uma área</p></div><b>{round.scoreBreakdown?.inspectionPoints ?? round.inspection?.points ?? 0} pts</b></div><div className="setting-row"><div><strong>Tokens restantes</strong><p>{round.tokens?.remaining ?? '—'} tokens</p></div><b>{round.scoreBreakdown?.tokenPoints ?? round.tokens?.points ?? 0} pts</b></div><div className="setting-row"><div><strong>Total calculado</strong><p>sem pontuação manual</p></div><b>{round.scoreBreakdown?.total ?? round.totalScore ?? 0} pts</b></div></div>
         </aside>
       </div>
       <div className="print-only"><h1>TechEra · BIOGLOW 2026–2027</h1><p>Resumo do round · {round.event || 'Sessão de treino'} · {round.totalScore ?? 0} pontos</p></div>
@@ -382,7 +460,7 @@ function MissionsPage() {
     <div className="content">
       <PageHeading eyebrow="BIOGLOW / catálogo de missões" title="Conheça as missões." subtitle="A fonte única da configuração de pontuação do BIOGLOW." action={<div className="status-chip verified"><CheckCircle2 size={12} style={{ verticalAlign: 'middle' }} /> {list.filter((mission) => mission.scoreConfigStatus === 'verified').length} verificadas</div>} />
       <div className="toolbar"><div className="tabs"><button className={`tab ${tab === 'all' ? 'active' : ''}`} onClick={() => setTab('all')} data-testid="tab-missions-all">Todas as missões</button><button className={`tab ${tab === 'verified' ? 'active' : ''}`} onClick={() => setTab('verified')} data-testid="tab-missions-verified">Verificadas</button><button className={`tab ${tab === 'pending' ? 'active' : ''}`} onClick={() => setTab('pending')} data-testid="tab-missions-pending">Precisam de revisão</button></div><span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 11 }}>15 missões BIOGLOW · nenhuma outra temporada</span></div>
-      {missions.isLoading ? <LoadingState /> : missions.isError ? <ErrorState retry={() => missions.refetch()} /> : <div className="mission-catalog">{shown.length ? shown.map((mission: any) => <article className="card mission-card" key={mission.id} data-testid={`card-mission-${mission.id}`}><div className="m-top"><span className="mission-code">M{String(mission.number).padStart(2, '0')} / {mission.code}</span><span className={`status-chip ${mission.scoreConfigStatus}`}>{formatStatus(mission.scoreConfigStatus)}</span></div><h3>{mission.name}</h3><p>{mission.description}</p><footer><span>Máx. {mission.maxPoints ?? 'a definir'} pts</span><span title={mission.sourceReference}><BookOpen size={13} style={{ verticalAlign: 'middle' }} /> Fonte vinculada</span></footer>{mission.warning && <div className="notice" style={{ marginTop: 12 }}><AlertTriangle size={14} />{mission.warning}</div>}</article>) : <div className="card" style={{ gridColumn: '1/-1' }}><EmptyState title="Nenhuma missão corresponde a esta visão" body="Tente outro status de configuração." /></div>}</div>}
+      {missions.isLoading ? <LoadingState /> : missions.isError ? <ErrorState retry={() => missions.refetch()} /> : <div className="mission-catalog">{shown.length ? shown.map((mission: any) => <article className="card mission-card" key={mission.id} data-testid={`card-mission-${mission.id}`}><div className="m-top"><span className="mission-code">M{String(mission.number).padStart(2, '0')} / {mission.code}</span><span className={`status-chip ${mission.scoreConfigStatus}`}>{formatStatus(mission.scoreConfigStatus)}</span></div><h3>{mission.name}</h3><p>{mission.description}</p><div className="grid" style={{ gap: 7, marginTop: 14 }}>{(mission.scoringRules || []).map((rule: any) => <div key={rule.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', fontSize: 12 }}><span>{rule.label}{rule.helper && <small style={{ display: 'block', color: 'hsl(var(--muted-foreground))', marginTop: 3 }}>{rule.helper}</small>}</span><b style={{ whiteSpace: 'nowrap', color: 'hsl(var(--primary))' }}>{rule.inputKind === 'quantity' ? `${rule.points} pts/unidade` : rule.inputKind === 'select' ? rule.options.filter((option: any) => option.points > 0).map((option: any) => `${option.label}: ${option.points}`).join(' · ') : `${rule.points} pts`}</b></div>)}</div><footer><span>{mission.maxPoints ? `Até ${mission.maxPoints} pts` : 'Pontuação por unidade'}</span><span title={mission.sourceReference}><BookOpen size={13} style={{ verticalAlign: 'middle' }} /> Fonte oficial</span></footer>{mission.warning && <div className="notice" style={{ marginTop: 12 }}><AlertTriangle size={14} />{mission.warning}</div>}</article>) : <div className="card" style={{ gridColumn: '1/-1' }}><EmptyState title="Nenhuma missão corresponde a esta visão" body="Tente outro status de configuração." /></div>}</div>}
     </div>
   );
 }
@@ -420,14 +498,11 @@ function TeamPage() {
 
 function SettingsPage() {
   const team = useGetTeam();
-  const [saved, setSaved] = useState(false);
-  const [source, setSource] = useState('official-rulebook');
-  const [version, setVersion] = useState('BIOGLOW 2026–2027 · v1.0');
   return (
     <div className="content">
       <PageHeading eyebrow="BIOGLOW / configuração" title="Mantenha a fonte confiável." subtitle="A confiança na pontuação começa com um regulamento que toda a equipe pode consultar." />
       <div className="grid two-col">
-        <section className="card settings-section"><div className="card-head" style={{ padding: 0, marginBottom: 20 }}><div><h2>Fonte do regulamento</h2><span className="muted">Usada como referência para configurar as missões</span></div><ShieldCheck size={17} color="hsl(var(--primary))" /></div><div className="grid"><div className="field"><label htmlFor="rulebook-source">Fonte principal</label><select id="rulebook-source" className="select" value={source} onChange={(event) => { setSource(event.target.value); setSaved(false); }} data-testid="select-rulebook-source"><option value="official-rulebook">Regulamento oficial FIRST</option><option value="team-copy">Cópia verificada pela equipe</option></select></div><div className="field"><label htmlFor="rulebook-version">Identificação da versão</label><input id="rulebook-version" className="input" value={version} onChange={(event) => { setVersion(event.target.value); setSaved(false); }} data-testid="input-rulebook-version" /></div><div className="notice"><BookOpen size={15} />A pontuação das missões permanece pendente até que seus critérios tenham uma fonte verificada.</div><button className="button button-primary" onClick={() => setSaved(true)} data-testid="button-save-settings">{saved ? <><Check size={14} />Salvo neste espaço</> : 'Salvar configuração'}</button></div></section>
+        <section className="card settings-section"><div className="card-head" style={{ padding: 0, marginBottom: 20 }}><div><h2>Fonte oficial da pontuação</h2><span className="muted">Regras fixas do desafio BIOGLOW</span></div><ShieldCheck size={17} color="hsl(var(--primary))" /></div><div className="grid"><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Referência</strong><p>Vídeo oficial BIOGLOW 2026–2027</p></div><a className="link" href="https://youtube.com/watch?v=uhZZ8O1StiQ&feature=shared" target="_blank" rel="noreferrer">Abrir fonte <ArrowRight size={12} style={{ verticalAlign: 'middle' }} /></a></div><div className="notice"><BookOpen size={15} />Os pontos oficiais são calculados automaticamente pelas condições cumpridas. Eles não podem ser digitados, editados ou configurados neste espaço.</div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Inspeção de equipamento</strong><p>Equipamento em apenas uma área de lançamento</p></div><b>20 pts</b></div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Tokens de precisão</strong><p>6/5: 50 · 4: 35 · 3: 25 · 2: 15 · 1: 10 · 0: 0</p></div><b>Fixo</b></div></div></section>
         <section className="card settings-section"><div className="card-head" style={{ padding: 0, marginBottom: 20 }}><div><h2>Proteções do espaço de trabalho</h2><span className="muted">Para o que este app está preparado</span></div><Database size={17} color="hsl(var(--primary))" /></div><div className="setting-row"><div><strong>Temporada ativa</strong><p>Este espaço aceita apenas a temporada BIOGLOW atual.</p></div><span className="status-chip verified">BIOGLOW</span></div><div className="setting-row"><div><strong>Divisão</strong><p>A pontuação dos rounds e as leituras das missões estão configuradas para este formato.</p></div><b>Challenge</b></div><div className="setting-row"><div><strong>Registro da equipe</strong><p>As alterações de identidade são gerenciadas na página Equipe.</p></div><Link href="/team" className="link" data-testid="link-settings-team">Abrir equipe <ArrowRight size={12} style={{ verticalAlign: 'middle' }} /></Link></div></section>
       </div>
       {team.data && <div className="card" style={{ marginTop: 18, padding: 20 }}><div className="eyebrow">Identidade conectada</div><p style={{ fontSize: 12 }}><b>{(team.data as any).name}</b> · {(team.data as any).robotName} · {(team.data as any).rulebookVersion}</p></div>}
