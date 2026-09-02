@@ -7,6 +7,7 @@
  */
 import type { InspectionInput } from './inspectionInput';
 import type { MissionResultInput } from './missionResultInput';
+import type { ProblemCause } from './problemCause';
 import type { RoundUpdateSeasonName } from './roundUpdateSeasonName';
 import type { RoundUpdateStatus } from './roundUpdateStatus';
 import type { RoundUpdateType } from './roundUpdateType';
@@ -30,6 +31,8 @@ export interface RoundUpdate {
   fieldSetup?: string;
   fieldConditions?: string;
   generalNotes?: string;
+  problemCauses?: ProblemCause[];
+  otherProblem?: string;
   missionResults?: MissionResultInput[];
   tokens?: TokensInput;
   inspection?: InspectionInput;
