@@ -180,6 +180,15 @@ function RoundRow({ round }: { round: any }) {
 }
 
 const tokenPointsByRemaining: Record<number, number> = { 0: 0, 1: 10, 2: 15, 3: 25, 4: 35, 5: 50, 6: 50 };
+const problemCauseOptions = [
+  { value: 'position', label: 'Posição' },
+  { value: 'curve', label: 'Curva' },
+  { value: 'attachment_error', label: 'Erro no anexo' },
+  { value: 'nervousness', label: 'Nervosismo' },
+  { value: 'programming', label: 'Programação' },
+  { value: 'time', label: 'Tempo' },
+] as const;
+const problemCauseLabels = Object.fromEntries(problemCauseOptions.map((option) => [option.value, option.label]));
 
 function defaultCriterion(rule: any) {
   return {
@@ -270,6 +279,8 @@ function NewRound() {
   const [roundType, setRoundType] = useState('training');
   const [memberIds, setMemberIds] = useState<number[]>([]);
   const [notes, setNotes] = useState('');
+  const [problemCauses, setProblemCauses] = useState<string[]>([]);
+  const [otherProblem, setOtherProblem] = useState('');
   const [results, setResults] = useState<Record<number, Record<string, any>>>({});
   const [tokensRemaining, setTokensRemaining] = useState(6);
   const [inspectionStatus, setInspectionStatus] = useState('unregistered');
@@ -300,11 +311,14 @@ function NewRound() {
   const missionScore = missionInputs.reduce((total, { mission, criteria }) => total + clientMissionPoints(mission, criteria), 0);
   const inspectionPoints = inspectionStatus === 'approved' ? 20 : 0;
   const score = missionScore + inspectionPoints + tokenPointsByRemaining[tokensRemaining];
+  const toggleProblemCause = (cause: string) => setProblemCauses((current) =>
+    current.includes(cause) ? current.filter((item) => item !== cause) : [...current, cause],
+  );
   const save = () => create.mutate({
     data: {
       dateTime: new Date().toISOString(), type: roundType, seasonName: 'BIOGLOW 2026–2027', event, memberIds,
       plannedDurationSeconds: 150, actualDurationSeconds: elapsed, robotVersion: 'Versão atual',
-      fieldSetup: '', fieldConditions: '', generalNotes: notes,
+      fieldSetup: '', fieldConditions: '', generalNotes: notes, problemCauses, otherProblem,
       missionResults: missionInputs.map(({ mission, criteria }) => ({
         missionId: mission.id,
         criteria: Object.values(criteria),
@@ -337,7 +351,7 @@ function NewRound() {
             </div>
           </section>
           <section className="card capture-card">
-            <div className="capture-toolbar"><div><div className="eyebrow">Resultados das missões</div><h2>O que aconteceu em campo?</h2></div><div style={{ display: 'flex', gap: 7 }}><button className={`button ${running ? 'button-danger' : 'button-lime'}`} onClick={() => setRunning((value) => !value)} data-testid="button-toggle-timer">{running ? <><Pause size={14} />Pausar</> : <><Play size={14} />Iniciar cronômetro</>}</button><button className="button button-ghost" onClick={() => { setElapsed(0); setRunning(false); }} data-testid="button-reset-timer"><TimerReset size={14} /></button></div></div>
+            <div className="capture-toolbar"><div><div className="eyebrow">Resultados das missões</div><h2>O que aconteceu em campo?</h2></div><div style={{ display: 'flex', gap: 7 }}><button className={`button ${running ? 'button-danger' : 'button-lime'}`} onClick={() => setRunning((value) => !value)} data-testid="button-toggle-timer">{running ? <><Pause size={14} />Parar cronômetro</> : <><Play size={14} />{elapsed ? 'Continuar cronômetro' : 'Iniciar cronômetro'}</>}</button><button className="button button-ghost" onClick={() => { setElapsed(0); setRunning(false); }} data-testid="button-reset-timer"><TimerReset size={14} /></button></div></div>
             <div className="mission-grid">{list.length ? list.map((mission: any) => {
               const criteria = missionInputs.find(({ mission: item }) => item.id === mission.id)?.criteria || {};
               const subtotal = clientMissionPoints(mission, criteria);
@@ -360,12 +374,23 @@ function NewRound() {
               </div>;
             }) : <EmptyState title="Catálogo de missões indisponível" body="A configuração das missões ainda está carregando ou não pôde ser acessada." />}</div>
           </section>
+          <section className="card capture-card">
+            <div className="card-head" style={{ padding: 0, marginBottom: 14 }}><div><h2>Erros e causas do round</h2><span className="muted">Marque tudo o que atrapalhou esta execução.</span></div><AlertTriangle size={17} color="hsl(var(--primary))" /></div>
+            <div className="field">
+              <label>Causa do erro</label>
+              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+                {problemCauseOptions.map((option) => <button type="button" key={option.value} className={`button ${problemCauses.includes(option.value) ? 'button-primary' : 'button-ghost'}`} onClick={() => toggleProblemCause(option.value)} aria-pressed={problemCauses.includes(option.value)} data-testid={`button-problem-cause-${option.value}`}>{problemCauses.includes(option.value) && <Check size={12} />}{option.label}</button>)}
+              </div>
+              <small>{problemCauses.length ? `${problemCauses.length} causa${problemCauses.length === 1 ? '' : 's'} selecionada${problemCauses.length === 1 ? '' : 's'}` : 'Nenhuma causa selecionada'}</small>
+            </div>
+            <div className="field" style={{ marginTop: 16 }}><label htmlFor="round-other-problem">Outro problema</label><textarea id="round-other-problem" className="textarea" value={otherProblem} onChange={(event) => setOtherProblem(event.target.value)} placeholder="Descreva outro problema, se aconteceu…" data-testid="textarea-round-other-problem" /></div>
+          </section>
           <section className="card capture-card"><div className="field"><label htmlFor="round-notes">Notas do round</label><textarea id="round-notes" className="textarea" value={notes} onChange={(inputEvent) => setNotes(inputEvent.target.value)} placeholder="Uma observação útil para o próximo round…" data-testid="textarea-round-notes" /></div></section>
         </div>
         <aside className="grid side-sticky">
           <div className="summary-total"><div className="eyebrow">Estimativa ao vivo</div><div className="total" data-testid="text-live-score">{score}</div><span>pontos estimados · BIOGLOW 2026–2027</span></div>
            <div className="card" style={{ padding: 20 }}><div className="card-head" style={{ padding: 0, marginBottom: 14 }}><h3>Pulso da execução</h3><Gauge size={17} color="hsl(var(--primary))" /></div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Tentadas</strong><p>missões registradas</p></div><b>{attempted}/15</b></div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Tempo em campo</strong><p>meta 02:30</p></div><b>{mins}:{secs}</b></div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Tokens restantes</strong><p>pontuação oficial</p></div><b>{tokensRemaining} · {tokenPointsByRemaining[tokensRemaining]} pts</b></div><div className="setting-row" style={{ padding: '12px 0 0' }}><div><strong>Inspeção</strong><p>equipamento em uma área</p></div><b>{inspectionPoints} pts</b></div></div>
-          <div className="notice"><CircleHelp size={15} />Os detalhes da pontuação podem ser enriquecidos na tela do round depois de salvar.</div>
+           <div className="notice"><CircleHelp size={15} />Parar o cronômetro apenas congela o tempo. O round continua aberto para anotações e conferências até você clicar em “Salvar round”.</div>
         </aside>
       </div>
     </div>
@@ -405,12 +430,24 @@ function RoundDetail() {
   const update = useUpdateRound();
   const [editing, setEditing] = useState(() => new URLSearchParams(window.location.search).get('edit') === '1');
   const [notes, setNotes] = useState('');
-  useEffect(() => { if (detail.data) setNotes((detail.data as any).generalNotes || ''); }, [detail.data]);
+  const [problemCauses, setProblemCauses] = useState<string[]>([]);
+  const [otherProblem, setOtherProblem] = useState('');
+  useEffect(() => {
+    if (detail.data) {
+      const data: any = detail.data;
+      setNotes(data.generalNotes || '');
+      setProblemCauses(Array.isArray(data.problemCauses) ? data.problemCauses : []);
+      setOtherProblem(data.otherProblem || '');
+    }
+  }, [detail.data]);
   if (detail.isLoading) return <div className="content"><LoadingState /></div>;
   if (detail.isError || !detail.data) return <div className="content"><ErrorState retry={() => detail.refetch()} /></div>;
   const round: any = detail.data;
   const results: any[] = round.missionResults || [];
-  const saveNotes = () => update.mutate({ id, data: { generalNotes: notes } as any }, { onSuccess: (next: any) => { queryClient.setQueryData(getGetRoundQueryKey(id), next); setEditing(false); } });
+  const toggleDetailProblemCause = (cause: string) => setProblemCauses((current) =>
+    current.includes(cause) ? current.filter((item) => item !== cause) : [...current, cause],
+  );
+  const saveNotes = () => update.mutate({ id, data: { generalNotes: notes, problemCauses, otherProblem } as any }, { onSuccess: (next: any) => { queryClient.setQueryData(getGetRoundQueryKey(id), next); setEditing(false); } });
 
   return (
     <div className="content">
@@ -421,7 +458,7 @@ function RoundDetail() {
           <section className="card"><div className="card-head"><div><h2>Leitura das missões</h2><span className="muted">Cada condição e subtotal calculados pelo regulamento oficial</span></div><Target size={17} color="hsl(var(--primary))" /></div><div className="card-body"><div className="round-list">{results.length ? results.map((mission: any) => <div className="round-row" key={mission.missionId}><div style={{ flex: 1 }}><div className="round-title">Missão {String(mission.missionId).padStart(2, '0')}</div><div className="grid" style={{ gap: 4, marginTop: 7 }}>{(mission.criteria || []).map((criterion: any) => <div key={criterion.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 11, color: 'hsl(var(--muted-foreground))' }}><span>{criterion.label}{criterion.quantity > 1 ? ` · ${criterion.quantity} unidades` : ''}</span><b style={{ color: criterion.points ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))' }}>{criterion.points} pts</b></div>)}</div><div className="round-meta" style={{ marginTop: 7 }}>{mission.technicalNotes || 'Nenhuma nota técnica registrada'}</div></div><div className="score" title="Subtotal oficial da missão">{mission.points ?? 0}</div><span className={`status-chip ${mission.status === 'complete' || mission.status === 'bonus' ? 'complete' : mission.status === 'not_attempted' ? '' : 'pending'}`}>{formatStatus(mission.status)}</span></div>) : <EmptyState title="Nenhum detalhe de missão" body="Este round foi salvo sem resultados individuais das missões." />}</div></div></section>
         </div>
         <aside className="grid">
-          <div className="card" style={{ padding: 21 }}><div className="card-head" style={{ padding: 0, marginBottom: 14 }}><h3>Notas do round</h3><FileText size={16} color="hsl(var(--primary))" /></div>{editing ? <><textarea className="textarea" value={notes} onChange={(event) => setNotes(event.target.value)} data-testid="textarea-edit-round-notes" /><button className="button button-primary" style={{ marginTop: 10 }} onClick={saveNotes} disabled={update.isPending} data-testid="button-save-round-notes">{update.isPending ? 'Salvando…' : 'Salvar notas'}</button></> : <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12, lineHeight: 1.7 }}>{round.generalNotes || 'Nenhuma nota adicionada a este round.'}</p>}</div>
+            <div className="card" style={{ padding: 21 }}><div className="card-head" style={{ padding: 0, marginBottom: 14 }}><div><h3>Erros e causas</h3><span className="muted">O que atrapalhou este round</span></div><AlertTriangle size={16} color="hsl(var(--primary))" /></div>{editing ? <><div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>{problemCauseOptions.map((option) => <button type="button" key={option.value} className={`button ${problemCauses.includes(option.value) ? 'button-primary' : 'button-ghost'}`} style={{ padding: '7px 9px' }} onClick={() => toggleDetailProblemCause(option.value)} aria-pressed={problemCauses.includes(option.value)} data-testid={`button-edit-problem-cause-${option.value}`}>{problemCauses.includes(option.value) && <Check size={12} />}{option.label}</button>)}</div><textarea className="textarea" style={{ marginTop: 12 }} value={otherProblem} onChange={(event) => setOtherProblem(event.target.value)} placeholder="Outro problema, se aplicável…" data-testid="textarea-edit-other-problem" /><textarea className="textarea" style={{ marginTop: 12 }} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Notas gerais do round…" data-testid="textarea-edit-round-notes" /><button className="button button-primary" style={{ marginTop: 10 }} onClick={saveNotes} disabled={update.isPending} data-testid="button-save-round-notes">{update.isPending ? 'Salvando…' : 'Salvar alterações'}</button></> : <>{round.problemCauses?.length || round.otherProblem ? <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{(round.problemCauses || []).map((cause: string) => <span className="status-chip pending" key={cause}>{problemCauseLabels[cause] || cause}</span>)}{round.otherProblem && <span className="status-chip pending">Outro: {round.otherProblem}</span>}</div> : <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12 }}>Nenhuma causa registrada neste round.</p>}</>}</div>
            <div className="card" style={{ padding: 21 }}><div className="eyebrow">Resumo oficial da pontuação</div><div className="setting-row"><div><strong>Missões</strong><p>condições cumpridas</p></div><b>{round.scoreBreakdown?.missionPoints ?? 0} pts</b></div><div className="setting-row"><div><strong>Inspeção</strong><p>equipamento em uma área</p></div><b>{round.scoreBreakdown?.inspectionPoints ?? round.inspection?.points ?? 0} pts</b></div><div className="setting-row"><div><strong>Tokens restantes</strong><p>{round.tokens?.remaining ?? '—'} tokens</p></div><b>{round.scoreBreakdown?.tokenPoints ?? round.tokens?.points ?? 0} pts</b></div><div className="setting-row"><div><strong>Total calculado</strong><p>sem pontuação manual</p></div><b>{round.scoreBreakdown?.total ?? round.totalScore ?? 0} pts</b></div></div>
         </aside>
       </div>
