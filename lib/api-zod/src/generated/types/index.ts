@@ -37,6 +37,7 @@ export * from './missionScoreConfigStatus';
 export * from './missionScoringOption';
 export * from './missionScoringRule';
 export * from './missionScoringRuleInputKind';
+export * from './problemCause';
 export * from './round';
 export * from './roundInput';
 export * from './roundInputSeasonName';
