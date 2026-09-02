@@ -15,12 +15,14 @@ export type TeamSeasonName = typeof TeamSeasonName[keyof typeof TeamSeasonName];
 export const TeamSeasonName = {
   'BIOGLOW_2026–2027': 'BIOGLOW 2026–2027',
 } as const;
+
 export type TeamDivision = typeof TeamDivision[keyof typeof TeamDivision];
 
 
 export const TeamDivision = {
   Challenge: 'Challenge',
 } as const;
+
 export interface Team {
   id: number;
   name: string;
@@ -231,6 +233,18 @@ export interface InspectionInput {
   notes: string;
 }
 
+export type ProblemCause = typeof ProblemCause[keyof typeof ProblemCause];
+
+
+export const ProblemCause = {
+  position: 'position',
+  curve: 'curve',
+  attachment_error: 'attachment_error',
+  nervousness: 'nervousness',
+  programming: 'programming',
+  time: 'time',
+} as const;
+
 export type TokensInputStarted = typeof TokensInputStarted[keyof typeof TokensInputStarted];
 
 
@@ -308,6 +322,8 @@ export interface RoundInput {
   fieldSetup?: string;
   fieldConditions?: string;
   generalNotes?: string;
+  problemCauses?: ProblemCause[];
+  otherProblem?: string;
   missionResults?: MissionResultInput[];
   tokens?: TokensInput;
   inspection?: InspectionInput;
@@ -357,6 +373,8 @@ export interface RoundUpdate {
   fieldSetup?: string;
   fieldConditions?: string;
   generalNotes?: string;
+  problemCauses?: ProblemCause[];
+  otherProblem?: string;
   missionResults?: MissionResultInput[];
   tokens?: TokensInput;
   inspection?: InspectionInput;
@@ -369,6 +387,8 @@ export type Round = RoundInput & {
   missionResults: MissionResult[];
   tokens: Tokens;
   inspection: Inspection;
+  problemCauses: ProblemCause[];
+  otherProblem: string;
   /** @minimum 0 */
   totalScore: number;
   /** @minimum 0 */
@@ -416,6 +436,8 @@ export interface RoundSummary {
   actualDurationSeconds: number | null;
   robotVersion: string;
   problemsCount: number;
+  problemCauses: ProblemCause[];
+  otherProblem: string;
   status: RoundSummaryStatus;
 }
 
@@ -504,6 +526,8 @@ format: ExportRoundsFormat;
 };
 
 export type ExportRoundsFormat = typeof ExportRoundsFormat[keyof typeof ExportRoundsFormat];
+
+
 export const ExportRoundsFormat = {
   csv: 'csv',
   json: 'json',
