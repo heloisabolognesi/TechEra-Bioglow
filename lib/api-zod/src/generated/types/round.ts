@@ -7,6 +7,7 @@
  */
 import type { Inspection } from './inspection';
 import type { MissionResult } from './missionResult';
+import type { ProblemCause } from './problemCause';
 import type { RoundInput } from './roundInput';
 import type { RoundMember } from './roundMember';
 import type { ScoreBreakdown } from './scoreBreakdown';
@@ -17,6 +18,8 @@ export type Round = RoundInput & {
   missionResults: MissionResult[];
   tokens: Tokens;
   inspection: Inspection;
+  problemCauses: ProblemCause[];
+  otherProblem: string;
   /** @minimum 0 */
   totalScore: number;
   /** @minimum 0 */
