@@ -57,6 +57,8 @@ export const roundsTable = pgTable("bioglow_rounds", {
   fieldSetup: text("field_setup").notNull().default(""),
   fieldConditions: text("field_conditions").notNull().default(""),
   generalNotes: text("general_notes").notNull().default(""),
+  problemCauses: jsonb("problem_causes").$type<string[]>().notNull().default([]),
+  otherProblem: text("other_problem").notNull().default(""),
   missionResults: jsonb("mission_results").notNull().default([]),
   tokens: jsonb("tokens").notNull().default({ started: 6, remaining: 6, interruptions: 0, notes: "" }),
   inspection: jsonb("inspection").notNull().default({ status: "unregistered", points: 0, notes: "" }),
