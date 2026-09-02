@@ -5,6 +5,7 @@
  * API do TechEra BIOGLOW Tracker
  * OpenAPI spec version: 0.1.0
  */
+import type { ProblemCause } from './problemCause';
 import type { RoundMember } from './roundMember';
 import type { RoundSummaryStatus } from './roundSummaryStatus';
 import type { RoundSummaryType } from './roundSummaryType';
@@ -21,5 +22,7 @@ export interface RoundSummary {
   actualDurationSeconds: number | null;
   robotVersion: string;
   problemsCount: number;
+  problemCauses: ProblemCause[];
+  otherProblem: string;
   status: RoundSummaryStatus;
 }
