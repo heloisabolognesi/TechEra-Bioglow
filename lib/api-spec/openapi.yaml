@@ -428,6 +428,9 @@ components:
         status: { type: string, enum: [approved, rejected, unregistered] }
         notes: { type: string }
       required: [status, notes]
+    ProblemCause:
+      type: string
+      enum: [position, curve, attachment_error, nervousness, programming, time]
     TokensInput:
       type: object
       properties:
@@ -467,6 +470,8 @@ components:
         fieldSetup: { type: string }
         fieldConditions: { type: string }
         generalNotes: { type: string }
+        problemCauses: { type: array, items: { $ref: "#/components/schemas/ProblemCause" } }
+        otherProblem: { type: string }
         missionResults: { type: array, items: { $ref: "#/components/schemas/MissionResultInput" } }
         tokens: { $ref: "#/components/schemas/TokensInput" }
         inspection: { $ref: "#/components/schemas/InspectionInput" }
@@ -487,6 +492,8 @@ components:
         fieldSetup: { type: string }
         fieldConditions: { type: string }
         generalNotes: { type: string }
+        problemCauses: { type: array, items: { $ref: "#/components/schemas/ProblemCause" } }
+        otherProblem: { type: string }
         missionResults: { type: array, items: { $ref: "#/components/schemas/MissionResultInput" } }
         tokens: { $ref: "#/components/schemas/TokensInput" }
         inspection: { $ref: "#/components/schemas/InspectionInput" }
@@ -496,12 +503,14 @@ components:
       allOf:
         - $ref: "#/components/schemas/RoundInput"
         - type: object
-          required: [id, missionResults, tokens, inspection, totalScore, estimatedScore, attemptedMissions, problemsCount, scoreBreakdown, members, createdAt, updatedAt]
+          required: [id, missionResults, tokens, inspection, problemCauses, otherProblem, totalScore, estimatedScore, attemptedMissions, problemsCount, scoreBreakdown, members, createdAt, updatedAt]
           properties:
             id: { type: integer }
             missionResults: { type: array, items: { $ref: "#/components/schemas/MissionResult" } }
             tokens: { $ref: "#/components/schemas/Tokens" }
             inspection: { $ref: "#/components/schemas/Inspection" }
+            problemCauses: { type: array, items: { $ref: "#/components/schemas/ProblemCause" } }
+            otherProblem: { type: string }
             totalScore: { type: integer, minimum: 0 }
             estimatedScore: { type: integer, minimum: 0 }
             attemptedMissions: { type: integer, minimum: 0, maximum: 15 }
@@ -523,8 +532,10 @@ components:
         actualDurationSeconds: { type: ["integer", "null"] }
         robotVersion: { type: string }
         problemsCount: { type: integer }
+        problemCauses: { type: array, items: { $ref: "#/components/schemas/ProblemCause" } }
+        otherProblem: { type: string }
         status: { type: string, enum: [draft, saved, archived] }
-      required: [id, dateTime, type, event, totalScore, attemptedMissions, members, actualDurationSeconds, robotVersion, problemsCount, status]
+      required: [id, dateTime, type, event, totalScore, attemptedMissions, members, actualDurationSeconds, robotVersion, problemsCount, problemCauses, otherProblem, status]
     MissionMetric:
       type: object
       properties:
