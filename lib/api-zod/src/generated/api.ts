@@ -201,6 +201,8 @@ export const ListRoundsResponseItem = zod.object({
   "actualDurationSeconds": zod.int().nullable(),
   "robotVersion": zod.string(),
   "problemsCount": zod.int(),
+  "problemCauses": zod.array(zod.enum(['position', 'curve', 'attachment_error', 'nervousness', 'programming', 'time'])),
+  "otherProblem": zod.string(),
   "status": zod.enum(['draft', 'saved', 'archived'])
 })
 export const ListRoundsResponse = zod.array(ListRoundsResponseItem)
@@ -236,6 +238,8 @@ export const CreateRoundBody = zod.object({
   "fieldSetup": zod.string().optional(),
   "fieldConditions": zod.string().optional(),
   "generalNotes": zod.string().optional(),
+  "problemCauses": zod.array(zod.enum(['position', 'curve', 'attachment_error', 'nervousness', 'programming', 'time'])).optional(),
+  "otherProblem": zod.string().optional(),
   "missionResults": zod.array(zod.object({
   "missionId": zod.int().min(1),
   "criteria": zod.array(zod.object({
@@ -321,6 +325,8 @@ export const CreateRoundResponse = zod.object({
   "fieldSetup": zod.string().optional(),
   "fieldConditions": zod.string().optional(),
   "generalNotes": zod.string().optional(),
+  "problemCauses": zod.array(zod.enum(['position', 'curve', 'attachment_error', 'nervousness', 'programming', 'time'])),
+  "otherProblem": zod.string(),
   "missionResults": zod.array(zod.object({
   "missionId": zod.int().min(1),
   "criteria": zod.array(zod.object({
@@ -377,6 +383,8 @@ export const CreateRoundResponse = zod.object({
   "points": zod.int().min(createRoundResponseTwoInspectionPointsMin),
   "notes": zod.string()
 }),
+  "problemCauses": zod.array(zod.enum(['position', 'curve', 'attachment_error', 'nervousness', 'programming', 'time'])),
+  "otherProblem": zod.string(),
   "totalScore": zod.int().min(createRoundResponseTwoTotalScoreMin),
   "estimatedScore": zod.int().min(createRoundResponseTwoEstimatedScoreMin),
   "attemptedMissions": zod.int().min(createRoundResponseTwoAttemptedMissionsMin).max(createRoundResponseTwoAttemptedMissionsMax),
@@ -466,6 +474,8 @@ export const GetRoundResponse = zod.object({
   "fieldSetup": zod.string().optional(),
   "fieldConditions": zod.string().optional(),
   "generalNotes": zod.string().optional(),
+  "problemCauses": zod.array(zod.enum(['position', 'curve', 'attachment_error', 'nervousness', 'programming', 'time'])),
+  "otherProblem": zod.string(),
   "missionResults": zod.array(zod.object({
   "missionId": zod.int().min(1),
   "criteria": zod.array(zod.object({
@@ -522,6 +532,8 @@ export const GetRoundResponse = zod.object({
   "points": zod.int().min(getRoundResponseTwoInspectionPointsMin),
   "notes": zod.string()
 }),
+  "problemCauses": zod.array(zod.enum(['position', 'curve', 'attachment_error', 'nervousness', 'programming', 'time'])),
+  "otherProblem": zod.string(),
   "totalScore": zod.int().min(getRoundResponseTwoTotalScoreMin),
   "estimatedScore": zod.int().min(getRoundResponseTwoEstimatedScoreMin),
   "attemptedMissions": zod.int().min(getRoundResponseTwoAttemptedMissionsMin).max(getRoundResponseTwoAttemptedMissionsMax),
@@ -578,6 +590,8 @@ export const UpdateRoundBody = zod.object({
   "fieldSetup": zod.string().optional(),
   "fieldConditions": zod.string().optional(),
   "generalNotes": zod.string().optional(),
+  "problemCauses": zod.array(zod.enum(['position', 'curve', 'attachment_error', 'nervousness', 'programming', 'time'])).optional(),
+  "otherProblem": zod.string().optional(),
   "missionResults": zod.array(zod.object({
   "missionId": zod.int().min(1),
   "criteria": zod.array(zod.object({
@@ -663,6 +677,8 @@ export const UpdateRoundResponse = zod.object({
   "fieldSetup": zod.string().optional(),
   "fieldConditions": zod.string().optional(),
   "generalNotes": zod.string().optional(),
+  "problemCauses": zod.array(zod.enum(['position', 'curve', 'attachment_error', 'nervousness', 'programming', 'time'])),
+  "otherProblem": zod.string(),
   "missionResults": zod.array(zod.object({
   "missionId": zod.int().min(1),
   "criteria": zod.array(zod.object({
@@ -719,6 +735,8 @@ export const UpdateRoundResponse = zod.object({
   "points": zod.int().min(updateRoundResponseTwoInspectionPointsMin),
   "notes": zod.string()
 }),
+  "problemCauses": zod.array(zod.enum(['position', 'curve', 'attachment_error', 'nervousness', 'programming', 'time'])),
+  "otherProblem": zod.string(),
   "totalScore": zod.int().min(updateRoundResponseTwoTotalScoreMin),
   "estimatedScore": zod.int().min(updateRoundResponseTwoEstimatedScoreMin),
   "attemptedMissions": zod.int().min(updateRoundResponseTwoAttemptedMissionsMin).max(updateRoundResponseTwoAttemptedMissionsMax),
@@ -821,6 +839,8 @@ export const DuplicateRoundResponse = zod.object({
   "fieldSetup": zod.string().optional(),
   "fieldConditions": zod.string().optional(),
   "generalNotes": zod.string().optional(),
+  "problemCauses": zod.array(zod.enum(['position', 'curve', 'attachment_error', 'nervousness', 'programming', 'time'])),
+  "otherProblem": zod.string(),
   "missionResults": zod.array(zod.object({
   "missionId": zod.int().min(1),
   "criteria": zod.array(zod.object({
@@ -877,6 +897,8 @@ export const DuplicateRoundResponse = zod.object({
   "points": zod.int().min(duplicateRoundResponseTwoInspectionPointsMin),
   "notes": zod.string()
 }),
+  "problemCauses": zod.array(zod.enum(['position', 'curve', 'attachment_error', 'nervousness', 'programming', 'time'])),
+  "otherProblem": zod.string(),
   "totalScore": zod.int().min(duplicateRoundResponseTwoTotalScoreMin),
   "estimatedScore": zod.int().min(duplicateRoundResponseTwoEstimatedScoreMin),
   "attemptedMissions": zod.int().min(duplicateRoundResponseTwoAttemptedMissionsMin).max(duplicateRoundResponseTwoAttemptedMissionsMax),
@@ -925,6 +947,8 @@ export const GetDashboardResponse = zod.object({
   "actualDurationSeconds": zod.int().nullable(),
   "robotVersion": zod.string(),
   "problemsCount": zod.int(),
+  "problemCauses": zod.array(zod.enum(['position', 'curve', 'attachment_error', 'nervousness', 'programming', 'time'])),
+  "otherProblem": zod.string(),
   "status": zod.enum(['draft', 'saved', 'archived'])
 })),
   "missionMetrics": zod.array(zod.object({
@@ -1002,6 +1026,8 @@ export const ExportRoundsResponseItem = zod.object({
   "actualDurationSeconds": zod.int().nullable(),
   "robotVersion": zod.string(),
   "problemsCount": zod.int(),
+  "problemCauses": zod.array(zod.enum(['position', 'curve', 'attachment_error', 'nervousness', 'programming', 'time'])),
+  "otherProblem": zod.string(),
   "status": zod.enum(['draft', 'saved', 'archived'])
 })
 export const ExportRoundsResponse = zod.array(ExportRoundsResponseItem)
