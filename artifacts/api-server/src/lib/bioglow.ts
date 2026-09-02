@@ -141,6 +141,33 @@ export const tokenPointsByRemaining: Record<number, number> = {
   6: 50,
 };
 
+export const problemCauseLabels: Record<string, string> = {
+  position: "Posição",
+  curve: "Curva",
+  attachment_error: "Erro no anexo",
+  nervousness: "Nervosismo",
+  programming: "Programação",
+  time: "Tempo",
+};
+
+export function roundProblemLabels(round: { problemCauses?: unknown; otherProblem?: unknown }) {
+  const causes = Array.isArray(round.problemCauses)
+    ? round.problemCauses
+      .filter((cause): cause is string => typeof cause === "string" && cause.length > 0)
+      .map((cause) => problemCauseLabels[cause] ?? cause)
+    : [];
+  const other = typeof round.otherProblem === "string" ? round.otherProblem.trim() : "";
+  return other ? [...causes, `Outro: ${other}`] : causes;
+}
+
+export function aggregateProblemHistory(rounds: Array<{ problemCauses?: unknown; otherProblem?: unknown }>) {
+  const counts = new Map<string, number>();
+  rounds.flatMap(roundProblemLabels).forEach((label) => counts.set(label, (counts.get(label) ?? 0) + 1));
+  return [...counts.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "pt-BR"));
+}
+
 export type MissionResultValue = {
   missionId: number;
   status: "not_attempted" | "failed" | "partial" | "complete" | "bonus" | "not_applicable";
@@ -159,6 +186,7 @@ export type MissionResultInputValue = {
   technicalNotes: string;
   confidence: "low" | "medium" | "high";
 };
+export type ProblemCause = keyof typeof problemCauseLabels;
 export type TokenValue = { started: 6; remaining: number; interruptions: number; notes: string; points?: number };
 export type InspectionValue = { status: "approved" | "rejected" | "unregistered"; points?: number; notes: string };
 export type MissionWithRules = Mission & { scoringRules: OfficialScoringRule[] };
@@ -242,6 +270,8 @@ export function withMembers(round: Round, members: Map<number, Member>, totals: 
     missionResults: totals.missionResults,
     tokens: totals.tokens,
     inspection: totals.inspection,
+    problemCauses: totals.problemCauses,
+    otherProblem: totals.otherProblem,
     totalScore: totals.estimatedScore,
     estimatedScore: totals.estimatedScore,
     attemptedMissions: totals.attemptedMissions,
@@ -262,6 +292,8 @@ export async function getRoundWithMembers(round: Round) {
     missionResults: (round.missionResults ?? []) as MissionResultInputValue[],
     tokens: round.tokens as TokenValue,
     inspection: round.inspection as InspectionValue,
+    problemCauses: round.problemCauses,
+    otherProblem: round.otherProblem,
   }, missions);
   return withMembers(round, members, totals);
 }
@@ -279,6 +311,8 @@ export async function summaryForRound(round: Round) {
     actualDurationSeconds: full.actualDurationSeconds,
     robotVersion: full.robotVersion,
     problemsCount: full.problemsCount,
+      problemCauses: full.problemCauses,
+      otherProblem: full.otherProblem,
     status: full.status,
   };
 }
@@ -323,6 +357,8 @@ export function calculateRound(body: {
   missionResults?: MissionResultInputValue[];
   tokens?: TokenValue;
   inspection?: InspectionValue;
+  problemCauses?: string[];
+  otherProblem?: string;
 }, missions: MissionWithRules[] = []) {
   const missionResults = body.missionResults ?? [];
   const normalizedMissionResults: MissionResultValue[] = missionResults.map((result) => {
@@ -396,7 +432,10 @@ export function calculateRound(body: {
   const remaining = Math.min(6, Math.max(0, Math.floor(body.tokens?.remaining ?? 6)));
   const tokenPoints = tokenPointsByRemaining[remaining] ?? 0;
   const attemptedMissions = normalizedMissionResults.filter((result) => result.attempted).length;
-  const problemsCount = normalizedMissionResults.filter((result) => Boolean(result.failureType) || result.status === "failed").length;
+  const problemCauses = [...new Set((body.problemCauses ?? []).filter((cause): cause is string => typeof cause === "string" && Boolean(problemCauseLabels[cause])))] as ProblemCause[];
+  const otherProblem = body.otherProblem?.trim() ?? "";
+  const missionProblems = normalizedMissionResults.filter((result) => Boolean(result.failureType) || result.status === "failed").length;
+  const problemsCount = missionProblems + problemCauses.length + (otherProblem ? 1 : 0);
   return {
     missionPoints,
     inspectionPoints,
@@ -404,6 +443,8 @@ export function calculateRound(body: {
     estimatedScore: missionPoints + inspectionPoints + tokenPoints,
     attemptedMissions,
     problemsCount,
+    problemCauses,
+    otherProblem,
     missionResults: normalizedMissionResults,
     tokens: {
       started: 6 as const,
