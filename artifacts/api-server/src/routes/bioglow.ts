@@ -36,6 +36,7 @@ import {
   memberMap,
   missionNames,
   officialMissionCatalog,
+  aggregateProblemHistory,
   sourceReference,
   summaryForRound,
   withMembers,
@@ -124,7 +125,13 @@ async function normalizeRoundBody(data: Record<string, unknown>) {
   const missionResults = (data.missionResults ?? []) as MissionResultValue[];
   const tokens = (data.tokens ?? { started: 6, remaining: 6, interruptions: 0, notes: "" }) as TokenValue;
   const inspection = (data.inspection ?? { status: "unregistered", points: 0, notes: "" }) as InspectionValue;
-  const totals = calculateRound({ missionResults, tokens, inspection }, await getMissions());
+  const totals = calculateRound({
+    missionResults,
+    tokens,
+    inspection,
+    problemCauses: data.problemCauses as string[] | undefined,
+    otherProblem: data.otherProblem as string | undefined,
+  }, await getMissions());
   return {
     dateTime: data.dateTime as Date,
     type: data.type as string,
@@ -138,6 +145,8 @@ async function normalizeRoundBody(data: Record<string, unknown>) {
     fieldSetup: (data.fieldSetup as string | undefined) ?? "",
     fieldConditions: (data.fieldConditions as string | undefined) ?? "",
     generalNotes: (data.generalNotes as string | undefined) ?? "",
+    problemCauses: totals.problemCauses,
+    otherProblem: totals.otherProblem,
     missionResults: totals.missionResults,
     tokens: totals.tokens,
     inspection: totals.inspection,
@@ -276,8 +285,11 @@ router.get("/dashboard", async (_req, res): Promise<void> => {
       missionResults: (round.missionResults ?? []) as MissionResultValue[],
       tokens: round.tokens as TokenValue,
       inspection: round.inspection as InspectionValue,
+      problemCauses: round.problemCauses,
+      otherProblem: round.otherProblem,
     }, missions),
   }));
+  const frequentProblems = aggregateProblemHistory(computedRounds);
   const metrics = missions.map((mission) => {
     const results = computedRounds.flatMap((round) => (round.missionResults as MissionResultValue[]).filter((result) => result.missionId === mission.id));
     const attempts = results.filter((result) => result.attempted);
@@ -299,7 +311,7 @@ router.get("/dashboard", async (_req, res): Promise<void> => {
     latestRounds: await Promise.all(recent.map(summaryForRound)),
     missionMetrics: metrics,
     focusMissions: focus,
-    frequentProblems: [],
+    frequentProblems: frequentProblems.map((problem) => problem.label),
   });
 });
 
@@ -333,8 +345,11 @@ router.get("/analytics", async (_req, res): Promise<void> => {
       missionResults: (round.missionResults ?? []) as MissionResultValue[],
       tokens: round.tokens as TokenValue,
       inspection: round.inspection as InspectionValue,
+      problemCauses: round.problemCauses,
+      otherProblem: round.otherProblem,
     }, missions),
   }));
+  const problemHistory = aggregateProblemHistory(computedRounds);
   const missionMetrics = missions.map((mission) => {
     const results = computedRounds.flatMap((round) => (round.missionResults as MissionResultValue[]).filter((result) => result.missionId === mission.id));
     const attempts = results.filter((result) => result.attempted);
@@ -343,7 +358,7 @@ router.get("/analytics", async (_req, res): Promise<void> => {
   res.json({
     scoreTrend: computedRounds.map((round) => ({ date: round.dateTime.toISOString(), score: round.totalScore, type: round.type })),
     missionMetrics,
-    problemHistory: [],
+    problemHistory,
   });
 });
 
