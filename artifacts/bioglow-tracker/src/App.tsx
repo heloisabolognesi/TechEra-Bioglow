@@ -180,6 +180,7 @@ function RoundRow({ round }: { round: any }) {
 }
 
 const tokenPointsByRemaining: Record<number, number> = { 0: 0, 1: 10, 2: 15, 3: 25, 4: 35, 5: 50, 6: 50 };
+const ROUND_DURATION_SECONDS = 150;
 const problemCauseOptions = [
   { value: 'position', label: 'Posição' },
   { value: 'curve', label: 'Curva' },
@@ -286,12 +287,19 @@ function NewRound() {
   const [inspectionStatus, setInspectionStatus] = useState('unregistered');
   useEffect(() => {
     if (!running) return;
-    const timer = window.setInterval(() => setElapsed((seconds) => seconds + 1), 1000);
+    const timer = window.setInterval(() => {
+      setElapsed((seconds) => Math.min(seconds + 1, ROUND_DURATION_SECONDS));
+    }, 1000);
     return () => window.clearInterval(timer);
   }, [running]);
+  useEffect(() => {
+    if (elapsed >= ROUND_DURATION_SECONDS) setRunning(false);
+  }, [elapsed]);
   const list: any[] = missions.data || [];
-  const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
-  const secs = String(elapsed % 60).padStart(2, '0');
+  const remainingSeconds = Math.max(ROUND_DURATION_SECONDS - elapsed, 0);
+  const mins = String(Math.floor(remainingSeconds / 60)).padStart(2, '0');
+  const secs = String(remainingSeconds % 60).padStart(2, '0');
+  const timerComplete = elapsed >= ROUND_DURATION_SECONDS;
   const setCriterion = (missionId: number, rule: any, patch: any) => setResults((old) => ({
     ...old,
     [missionId]: {
@@ -351,7 +359,7 @@ function NewRound() {
             </div>
           </section>
           <section className="card capture-card">
-            <div className="capture-toolbar"><div><div className="eyebrow">Resultados das missões</div><h2>O que aconteceu em campo?</h2></div><div style={{ display: 'flex', gap: 7 }}><button className={`button ${running ? 'button-danger' : 'button-lime'}`} onClick={() => setRunning((value) => !value)} data-testid="button-toggle-timer">{running ? <><Pause size={14} />Parar cronômetro</> : <><Play size={14} />{elapsed ? 'Continuar cronômetro' : 'Iniciar cronômetro'}</>}</button><button className="button button-ghost" onClick={() => { setElapsed(0); setRunning(false); }} data-testid="button-reset-timer"><TimerReset size={14} /></button></div></div>
+            <div className="capture-toolbar"><div><div className="eyebrow">Resultados das missões</div><h2>O que aconteceu em campo?</h2></div><div style={{ display: 'flex', gap: 7 }}><button className={`button ${running ? 'button-danger' : 'button-lime'}`} onClick={() => setRunning((value) => !value)} disabled={timerComplete} data-testid="button-toggle-timer">{running ? <><Pause size={14} />Parar cronômetro</> : timerComplete ? 'Tempo encerrado' : <><Play size={14} />{elapsed ? 'Continuar cronômetro' : 'Iniciar cronômetro'}</>}</button><button className="button button-ghost" onClick={() => { setElapsed(0); setRunning(false); }} aria-label="Reiniciar cronômetro para 02:30" data-testid="button-reset-timer"><TimerReset size={14} /></button></div></div>
             <div className="mission-grid">{list.length ? list.map((mission: any) => {
               const criteria = missionInputs.find(({ mission: item }) => item.id === mission.id)?.criteria || {};
               const subtotal = clientMissionPoints(mission, criteria);
@@ -389,8 +397,8 @@ function NewRound() {
         </div>
         <aside className="grid side-sticky">
           <div className="summary-total"><div className="eyebrow">Estimativa ao vivo</div><div className="total" data-testid="text-live-score">{score}</div><span>pontos estimados · BIOGLOW 2026–2027</span></div>
-           <div className="card" style={{ padding: 20 }}><div className="card-head" style={{ padding: 0, marginBottom: 14 }}><h3>Pulso da execução</h3><Gauge size={17} color="hsl(var(--primary))" /></div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Tentadas</strong><p>missões registradas</p></div><b>{attempted}/15</b></div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Tempo em campo</strong><p>meta 02:30</p></div><b>{mins}:{secs}</b></div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Tokens restantes</strong><p>pontuação oficial</p></div><b>{tokensRemaining} · {tokenPointsByRemaining[tokensRemaining]} pts</b></div><div className="setting-row" style={{ padding: '12px 0 0' }}><div><strong>Inspeção</strong><p>equipamento em uma área</p></div><b>{inspectionPoints} pts</b></div></div>
-           <div className="notice"><CircleHelp size={15} />Parar o cronômetro apenas congela o tempo. O round continua aberto para anotações e conferências até você clicar em “Salvar round”.</div>
+           <div className="card" style={{ padding: 20 }}><div className="card-head" style={{ padding: 0, marginBottom: 14 }}><h3>Pulso da execução</h3><Gauge size={17} color="hsl(var(--primary))" /></div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Tentadas</strong><p>missões registradas</p></div><b>{attempted}/15</b></div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Tempo restante</strong><p>limite 02:30</p></div><b>{mins}:{secs}</b></div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Tokens restantes</strong><p>pontuação oficial</p></div><b>{tokensRemaining} · {tokenPointsByRemaining[tokensRemaining]} pts</b></div><div className="setting-row" style={{ padding: '12px 0 0' }}><div><strong>Inspeção</strong><p>equipamento em uma área</p></div><b>{inspectionPoints} pts</b></div></div>
+            <div className="notice"><CircleHelp size={15} />O cronômetro conta de 02:30 até 00:00 e para automaticamente; pausá-lo não fecha o round, que continua aberto até você clicar em “Salvar round”.</div>
         </aside>
       </div>
     </div>
