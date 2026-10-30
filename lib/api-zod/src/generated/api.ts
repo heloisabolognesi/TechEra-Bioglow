@@ -212,6 +212,7 @@ export const ListRoundsResponse = zod.array(ListRoundsResponseItem)
  * @summary Cria um round
  */
 export const createRoundBodyPlannedDurationSecondsDefault = 150;
+export const createRoundBodyPlannedDurationSecondsMin = 0;
 
 export const createRoundBodyActualDurationSecondsMin = 0;
 
@@ -232,7 +233,7 @@ export const CreateRoundBody = zod.object({
   "event": zod.string().optional(),
   "roundNumber": zod.string().optional(),
   "memberIds": zod.array(zod.int()).optional(),
-  "plannedDurationSeconds": zod.int().min(1).default(createRoundBodyPlannedDurationSecondsDefault),
+  "plannedDurationSeconds": zod.int().min(createRoundBodyPlannedDurationSecondsMin).default(createRoundBodyPlannedDurationSecondsDefault).describe('Use 0 for a stopwatch with no time limit; positive values enable countdown mode.'),
   "actualDurationSeconds": zod.int().min(createRoundBodyActualDurationSecondsMin).nullish(),
   "robotVersion": zod.string().optional(),
   "fieldSetup": zod.string().optional(),
@@ -267,6 +268,7 @@ export const CreateRoundBody = zod.object({
 })
 
 export const createRoundResponseOnePlannedDurationSecondsDefault = 150;
+export const createRoundResponseOnePlannedDurationSecondsMin = 0;
 
 export const createRoundResponseOneActualDurationSecondsMin = 0;
 
@@ -319,7 +321,7 @@ export const CreateRoundResponse = zod.object({
   "event": zod.string().optional(),
   "roundNumber": zod.string().optional(),
   "memberIds": zod.array(zod.int()).optional(),
-  "plannedDurationSeconds": zod.int().min(1).default(createRoundResponseOnePlannedDurationSecondsDefault),
+  "plannedDurationSeconds": zod.int().min(createRoundResponseOnePlannedDurationSecondsMin).default(createRoundResponseOnePlannedDurationSecondsDefault).describe('Use 0 for a stopwatch with no time limit; positive values enable countdown mode.'),
   "actualDurationSeconds": zod.int().min(createRoundResponseOneActualDurationSecondsMin).nullish(),
   "robotVersion": zod.string().optional(),
   "fieldSetup": zod.string().optional(),
@@ -416,6 +418,7 @@ export const GetRoundParams = zod.object({
 })
 
 export const getRoundResponseOnePlannedDurationSecondsDefault = 150;
+export const getRoundResponseOnePlannedDurationSecondsMin = 0;
 
 export const getRoundResponseOneActualDurationSecondsMin = 0;
 
@@ -468,7 +471,7 @@ export const GetRoundResponse = zod.object({
   "event": zod.string().optional(),
   "roundNumber": zod.string().optional(),
   "memberIds": zod.array(zod.int()).optional(),
-  "plannedDurationSeconds": zod.int().min(1).default(getRoundResponseOnePlannedDurationSecondsDefault),
+  "plannedDurationSeconds": zod.int().min(getRoundResponseOnePlannedDurationSecondsMin).default(getRoundResponseOnePlannedDurationSecondsDefault).describe('Use 0 for a stopwatch with no time limit; positive values enable countdown mode.'),
   "actualDurationSeconds": zod.int().min(getRoundResponseOneActualDurationSecondsMin).nullish(),
   "robotVersion": zod.string().optional(),
   "fieldSetup": zod.string().optional(),
@@ -564,6 +567,7 @@ export const UpdateRoundParams = zod.object({
   "id": zod.coerce.number().int().min(1)
 })
 
+export const updateRoundBodyPlannedDurationSecondsMin = 0;
 
 export const updateRoundBodyActualDurationSecondsMin = 0;
 
@@ -584,7 +588,7 @@ export const UpdateRoundBody = zod.object({
   "event": zod.string().optional(),
   "roundNumber": zod.string().optional(),
   "memberIds": zod.array(zod.int()).optional(),
-  "plannedDurationSeconds": zod.int().min(1).optional(),
+  "plannedDurationSeconds": zod.int().min(updateRoundBodyPlannedDurationSecondsMin).optional().describe('Use 0 for a stopwatch with no time limit; positive values enable countdown mode.'),
   "actualDurationSeconds": zod.int().min(updateRoundBodyActualDurationSecondsMin).nullish(),
   "robotVersion": zod.string().optional(),
   "fieldSetup": zod.string().optional(),
@@ -619,6 +623,7 @@ export const UpdateRoundBody = zod.object({
 })
 
 export const updateRoundResponseOnePlannedDurationSecondsDefault = 150;
+export const updateRoundResponseOnePlannedDurationSecondsMin = 0;
 
 export const updateRoundResponseOneActualDurationSecondsMin = 0;
 
@@ -671,7 +676,7 @@ export const UpdateRoundResponse = zod.object({
   "event": zod.string().optional(),
   "roundNumber": zod.string().optional(),
   "memberIds": zod.array(zod.int()).optional(),
-  "plannedDurationSeconds": zod.int().min(1).default(updateRoundResponseOnePlannedDurationSecondsDefault),
+  "plannedDurationSeconds": zod.int().min(updateRoundResponseOnePlannedDurationSecondsMin).default(updateRoundResponseOnePlannedDurationSecondsDefault).describe('Use 0 for a stopwatch with no time limit; positive values enable countdown mode.'),
   "actualDurationSeconds": zod.int().min(updateRoundResponseOneActualDurationSecondsMin).nullish(),
   "robotVersion": zod.string().optional(),
   "fieldSetup": zod.string().optional(),
@@ -781,6 +786,7 @@ export const DuplicateRoundParams = zod.object({
 })
 
 export const duplicateRoundResponseOnePlannedDurationSecondsDefault = 150;
+export const duplicateRoundResponseOnePlannedDurationSecondsMin = 0;
 
 export const duplicateRoundResponseOneActualDurationSecondsMin = 0;
 
@@ -833,7 +839,7 @@ export const DuplicateRoundResponse = zod.object({
   "event": zod.string().optional(),
   "roundNumber": zod.string().optional(),
   "memberIds": zod.array(zod.int()).optional(),
-  "plannedDurationSeconds": zod.int().min(1).default(duplicateRoundResponseOnePlannedDurationSecondsDefault),
+  "plannedDurationSeconds": zod.int().min(duplicateRoundResponseOnePlannedDurationSecondsMin).default(duplicateRoundResponseOnePlannedDurationSecondsDefault).describe('Use 0 for a stopwatch with no time limit; positive values enable countdown mode.'),
   "actualDurationSeconds": zod.int().min(duplicateRoundResponseOneActualDurationSecondsMin).nullish(),
   "robotVersion": zod.string().optional(),
   "fieldSetup": zod.string().optional(),

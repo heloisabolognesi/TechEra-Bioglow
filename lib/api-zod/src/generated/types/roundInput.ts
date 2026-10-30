@@ -20,7 +20,10 @@ export interface RoundInput {
   event?: string;
   roundNumber?: string;
   memberIds?: number[];
-  /** @minimum 1 */
+  /**
+     * Use 0 for a stopwatch with no time limit; positive values enable countdown mode.
+     * @minimum 0
+     */
   plannedDurationSeconds: number;
   /**
      * @minimum 0

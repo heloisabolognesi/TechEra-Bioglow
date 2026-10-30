@@ -180,7 +180,8 @@ function RoundRow({ round }: { round: any }) {
 }
 
 const tokenPointsByRemaining: Record<number, number> = { 0: 0, 1: 10, 2: 15, 3: 25, 4: 35, 5: 50, 6: 50 };
-const ROUND_DURATION_SECONDS = 150;
+const DEFAULT_ROUND_DURATION_SECONDS = 150;
+type TimerMode = 'countdown' | 'stopwatch';
 const problemCauseOptions = [
   { value: 'position', label: 'Posição' },
   { value: 'curve', label: 'Curva' },
@@ -190,6 +191,90 @@ const problemCauseOptions = [
   { value: 'time', label: 'Tempo' },
 ] as const;
 const problemCauseLabels = Object.fromEntries(problemCauseOptions.map((option) => [option.value, option.label]));
+
+function formatDuration(seconds: number | null | undefined) {
+  if (seconds == null || !Number.isFinite(seconds)) return '—';
+  const totalSeconds = Math.max(0, Math.floor(seconds));
+  const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+  const remainingSeconds = String(totalSeconds % 60).padStart(2, '0');
+  return `${minutes}:${remainingSeconds}`;
+}
+
+function DurationInputs({
+  idPrefix,
+  label,
+  valueSeconds,
+  onChange,
+  minSeconds = 0,
+  className = 'field',
+  disabled = false,
+}: {
+  idPrefix: string;
+  label: string;
+  valueSeconds: number | null;
+  onChange: (seconds: number) => void;
+  minSeconds?: number;
+  className?: string;
+  disabled?: boolean;
+}) {
+  const safeSeconds = Math.max(0, valueSeconds ?? 0);
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = Math.floor(safeSeconds % 60);
+  const updateMinutes = (value: string) => {
+    const nextMinutes = Math.max(0, Math.floor(Number(value) || 0));
+    onChange(Math.max(minSeconds, nextMinutes * 60 + seconds));
+  };
+  const updateSeconds = (value: string) => {
+    const nextSeconds = Math.min(59, Math.max(0, Math.floor(Number(value) || 0)));
+    onChange(Math.max(minSeconds, minutes * 60 + nextSeconds));
+  };
+
+  return (
+    <div className={className}>
+      <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 7 }}>{label}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <div className="field">
+          <label htmlFor={`${idPrefix}-minutes`}>Minutos</label>
+          <input id={`${idPrefix}-minutes`} type="number" min="0" step="1" className="input" value={valueSeconds == null ? '' : minutes} onChange={(event) => updateMinutes(event.target.value)} disabled={disabled} />
+        </div>
+        <div className="field">
+          <label htmlFor={`${idPrefix}-seconds`}>Segundos</label>
+          <input id={`${idPrefix}-seconds`} type="number" min="0" max="59" step="1" className="input" value={valueSeconds == null ? '' : seconds} onChange={(event) => updateSeconds(event.target.value)} disabled={disabled} />
+        </div>
+      </div>
+      <small>Tempo: {formatDuration(valueSeconds)}</small>
+    </div>
+  );
+}
+
+function TimerModeSelector({
+  mode,
+  onChange,
+  idPrefix,
+  disabled = false,
+  className = 'field',
+}: {
+  mode: TimerMode;
+  onChange: (mode: TimerMode) => void;
+  idPrefix: string;
+  disabled?: boolean;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 7 }}>Modo do cronômetro</div>
+      <div role="group" aria-label="Modo do cronômetro" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 7 }}>
+        <button type="button" className={`button ${mode === 'countdown' ? 'button-primary' : 'button-ghost'}`} aria-pressed={mode === 'countdown'} onClick={() => onChange('countdown')} disabled={disabled} data-testid={`${idPrefix}-countdown`}>
+          <span>Contagem regressiva</span>
+        </button>
+        <button type="button" className={`button ${mode === 'stopwatch' ? 'button-primary' : 'button-ghost'}`} aria-pressed={mode === 'stopwatch'} onClick={() => onChange('stopwatch')} disabled={disabled} data-testid={`${idPrefix}-stopwatch`}>
+          <span>Cronômetro livre</span>
+        </button>
+      </div>
+      <small>{mode === 'countdown' ? 'Começa no tempo definido e para em 00:00.' : 'Começa em 00:00 e conta até você parar.'}</small>
+    </div>
+  );
+}
 
 function defaultCriterion(rule: any) {
   return {
@@ -274,6 +359,8 @@ function NewRound() {
   const missions = useListMissions();
   const members = useListMembers();
   const create = useCreateRound();
+  const [timerMode, setTimerMode] = useState<TimerMode>('countdown');
+  const plannedDurationSeconds = DEFAULT_ROUND_DURATION_SECONDS;
   const [running, setRunning] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [event, setEvent] = useState('Campo de treino');
@@ -288,18 +375,27 @@ function NewRound() {
   useEffect(() => {
     if (!running) return;
     const timer = window.setInterval(() => {
-      setElapsed((seconds) => Math.min(seconds + 1, ROUND_DURATION_SECONDS));
+      setElapsed((seconds) => timerMode === 'countdown'
+        ? Math.min(seconds + 1, plannedDurationSeconds)
+        : seconds + 1);
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [running]);
+  }, [running, timerMode, plannedDurationSeconds]);
   useEffect(() => {
-    if (elapsed >= ROUND_DURATION_SECONDS) setRunning(false);
-  }, [elapsed]);
+    if (timerMode === 'countdown' && elapsed >= plannedDurationSeconds) setRunning(false);
+  }, [elapsed, plannedDurationSeconds, timerMode]);
   const list: any[] = missions.data || [];
-  const remainingSeconds = Math.max(ROUND_DURATION_SECONDS - elapsed, 0);
-  const mins = String(Math.floor(remainingSeconds / 60)).padStart(2, '0');
-  const secs = String(remainingSeconds % 60).padStart(2, '0');
-  const timerComplete = elapsed >= ROUND_DURATION_SECONDS;
+  const displayedSeconds = timerMode === 'countdown'
+    ? Math.max(plannedDurationSeconds - elapsed, 0)
+    : elapsed;
+  const displayedTime = formatDuration(displayedSeconds);
+  const timerComplete = timerMode === 'countdown' && elapsed >= plannedDurationSeconds;
+  const changeTimerMode = (nextMode: TimerMode) => {
+    if (nextMode === timerMode) return;
+    setRunning(false);
+    setElapsed(0);
+    setTimerMode(nextMode);
+  };
   const setCriterion = (missionId: number, rule: any, patch: any) => setResults((old) => ({
     ...old,
     [missionId]: {
@@ -325,7 +421,8 @@ function NewRound() {
   const save = () => create.mutate({
     data: {
       dateTime: new Date().toISOString(), type: roundType, seasonName: 'BIOGLOW 2026–2027', event, memberIds,
-      plannedDurationSeconds: 150, actualDurationSeconds: elapsed, robotVersion: 'Versão atual',
+      plannedDurationSeconds: timerMode === 'countdown' ? plannedDurationSeconds : 0,
+      actualDurationSeconds: elapsed, robotVersion: 'Versão atual',
       fieldSetup: '', fieldConditions: '', generalNotes: notes, problemCauses, otherProblem,
       missionResults: missionInputs.map(({ mission, criteria }) => ({
         missionId: mission.id,
@@ -349,17 +446,18 @@ function NewRound() {
       <div className="capture-layout">
         <div className="grid">
           <section className="card capture-card">
-            <div className="capture-toolbar"><div><div className="eyebrow">Configuração do round</div><h2>Antes do lançamento</h2></div><div className={`timer ${running ? 'live' : ''}`} data-testid="text-round-timer">{mins}:{secs}</div></div>
+            <div className="capture-toolbar"><div><div className="eyebrow">Configuração do round</div><h2>Antes do lançamento</h2></div><div className={`timer ${running ? 'live' : ''}`} data-testid="text-round-timer">{displayedTime}</div></div>
             <div className="form-grid">
               <div className="field"><label htmlFor="round-event">Nome da sessão</label><input id="round-event" className="input" value={event} onChange={(inputEvent) => setEvent(inputEvent.target.value)} data-testid="input-round-event" /></div>
               <div className="field"><label htmlFor="round-type">Tipo de round</label><select id="round-type" className="select" value={roundType} onChange={(selectEvent) => setRoundType(selectEvent.target.value)} data-testid="select-round-type"><option value="training">Treino</option><option value="simulation">Simulação</option><option value="official">Oficial</option></select></div>
+              <TimerModeSelector mode={timerMode} onChange={changeTimerMode} idPrefix="round-timer-mode" disabled={running} className="field full" />
               <div className="field full"><label>Equipe na mesa</label><div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>{(members.data || []).filter((member: any) => member.active).map((member: any) => <button type="button" key={member.id} className={`button ${memberIds.includes(member.id) ? 'button-primary' : 'button-ghost'}`} onClick={() => setMemberIds((ids) => ids.includes(member.id) ? ids.filter((id) => id !== member.id) : [...ids, member.id])} data-testid={`button-member-${member.id}`}>{memberIds.includes(member.id) && <Check size={12} />}{member.nickname || member.name}</button>)}</div><small>{memberIds.length ? `${memberIds.length} integrante${memberIds.length === 1 ? '' : 's'} selecionado${memberIds.length === 1 ? '' : 's'}` : 'Selecione quem está executando esta sessão'}</small></div>
               <div className="field"><label htmlFor="inspection-status">Inspeção de equipamento</label><select id="inspection-status" className="select" value={inspectionStatus} onChange={(event) => setInspectionStatus(event.target.value)} data-testid="select-inspection-status"><option value="unregistered">Não registrada</option><option value="rejected">Não aprovada</option><option value="approved">Aprovada — 20 pontos</option></select><small>Equipamento em apenas uma área de lançamento pontua 20.</small></div>
               <div className="field"><label htmlFor="tokens-remaining">Tokens de precisão restantes</label><select id="tokens-remaining" className="select" value={tokensRemaining} onChange={(event) => setTokensRemaining(Number(event.target.value))} data-testid="select-tokens-remaining">{[6, 5, 4, 3, 2, 1, 0].map((value) => <option key={value} value={value}>{value} tokens — {tokenPointsByRemaining[value]} pontos</option>)}</select><small>O valor é fixo conforme a tabela oficial.</small></div>
             </div>
           </section>
           <section className="card capture-card">
-            <div className="capture-toolbar"><div><div className="eyebrow">Resultados das missões</div><h2>O que aconteceu em campo?</h2></div><div style={{ display: 'flex', gap: 7 }}><button className={`button ${running ? 'button-danger' : 'button-lime'}`} onClick={() => setRunning((value) => !value)} disabled={timerComplete} data-testid="button-toggle-timer">{running ? <><Pause size={14} />Parar cronômetro</> : timerComplete ? 'Tempo encerrado' : <><Play size={14} />{elapsed ? 'Continuar cronômetro' : 'Iniciar cronômetro'}</>}</button><button className="button button-ghost" onClick={() => { setElapsed(0); setRunning(false); }} aria-label="Reiniciar cronômetro para 02:30" data-testid="button-reset-timer"><TimerReset size={14} /></button></div></div>
+            <div className="capture-toolbar"><div><div className="eyebrow">Resultados das missões</div><h2>O que aconteceu em campo?</h2></div><div style={{ display: 'flex', gap: 7 }}><button className={`button ${running ? 'button-danger' : 'button-lime'}`} onClick={() => setRunning((value) => !value)} disabled={timerComplete} data-testid="button-toggle-timer">{running ? <><Pause size={14} />Parar cronômetro</> : timerComplete ? 'Tempo encerrado' : <><Play size={14} />{elapsed ? 'Continuar cronômetro' : 'Iniciar cronômetro'}</>}</button><button className="button button-ghost" onClick={() => { setElapsed(0); setRunning(false); }} aria-label="Reiniciar cronômetro" data-testid="button-reset-timer"><TimerReset size={14} /></button></div></div>
             <div className="mission-grid">{list.length ? list.map((mission: any) => {
               const criteria = missionInputs.find(({ mission: item }) => item.id === mission.id)?.criteria || {};
               const subtotal = clientMissionPoints(mission, criteria);
@@ -397,8 +495,8 @@ function NewRound() {
         </div>
         <aside className="grid side-sticky">
           <div className="summary-total"><div className="eyebrow">Estimativa ao vivo</div><div className="total" data-testid="text-live-score">{score}</div><span>pontos estimados · BIOGLOW 2026–2027</span></div>
-           <div className="card" style={{ padding: 20 }}><div className="card-head" style={{ padding: 0, marginBottom: 14 }}><h3>Pulso da execução</h3><Gauge size={17} color="hsl(var(--primary))" /></div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Tentadas</strong><p>missões registradas</p></div><b>{attempted}/15</b></div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Tempo restante</strong><p>limite 02:30</p></div><b>{mins}:{secs}</b></div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Tokens restantes</strong><p>pontuação oficial</p></div><b>{tokensRemaining} · {tokenPointsByRemaining[tokensRemaining]} pts</b></div><div className="setting-row" style={{ padding: '12px 0 0' }}><div><strong>Inspeção</strong><p>equipamento em uma área</p></div><b>{inspectionPoints} pts</b></div></div>
-            <div className="notice"><CircleHelp size={15} />O cronômetro conta de 02:30 até 00:00 e para automaticamente; pausá-lo não fecha o round, que continua aberto até você clicar em “Salvar round”.</div>
+            <div className="card" style={{ padding: 20 }}><div className="card-head" style={{ padding: 0, marginBottom: 14 }}><h3>Pulso da execução</h3><Gauge size={17} color="hsl(var(--primary))" /></div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Tentadas</strong><p>missões registradas</p></div><b>{attempted}/15</b></div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>{timerMode === 'countdown' ? 'Tempo restante' : 'Tempo decorrido'}</strong><p>{timerMode === 'countdown' ? `limite ${formatDuration(plannedDurationSeconds)}` : 'cronômetro livre'}</p></div><b>{displayedTime}</b></div><div className="setting-row" style={{ padding: '12px 0' }}><div><strong>Tokens restantes</strong><p>pontuação oficial</p></div><b>{tokensRemaining} · {tokenPointsByRemaining[tokensRemaining]} pts</b></div><div className="setting-row" style={{ padding: '12px 0 0' }}><div><strong>Inspeção</strong><p>equipamento em uma área</p></div><b>{inspectionPoints} pts</b></div></div>
+            <div className="notice"><CircleHelp size={15} />{timerMode === 'countdown' ? 'A contagem regressiva para automaticamente em 00:00.' : 'O cronômetro livre começa em 00:00 e só para quando você clicar em “Parar cronômetro”.'} Pausar ou parar não fecha o round; ele continua aberto até você clicar em “Salvar round”.</div>
         </aside>
       </div>
     </div>
@@ -437,12 +535,19 @@ function RoundDetail() {
   const queryClient = useQueryClient();
   const update = useUpdateRound();
   const [editing, setEditing] = useState(() => new URLSearchParams(window.location.search).get('edit') === '1');
+  const [timerMode, setTimerMode] = useState<TimerMode>('countdown');
+  const [plannedDurationSeconds, setPlannedDurationSeconds] = useState(DEFAULT_ROUND_DURATION_SECONDS);
+  const [actualDurationSeconds, setActualDurationSeconds] = useState<number | null>(null);
   const [notes, setNotes] = useState('');
   const [problemCauses, setProblemCauses] = useState<string[]>([]);
   const [otherProblem, setOtherProblem] = useState('');
   useEffect(() => {
     if (detail.data) {
       const data: any = detail.data;
+      const plannedDuration = Math.max(0, Math.floor(Number(data.plannedDurationSeconds ?? DEFAULT_ROUND_DURATION_SECONDS)));
+      setTimerMode(plannedDuration === 0 ? 'stopwatch' : 'countdown');
+      setPlannedDurationSeconds(plannedDuration || DEFAULT_ROUND_DURATION_SECONDS);
+      setActualDurationSeconds(data.actualDurationSeconds == null ? null : Math.max(0, Math.floor(Number(data.actualDurationSeconds))));
       setNotes(data.generalNotes || '');
       setProblemCauses(Array.isArray(data.problemCauses) ? data.problemCauses : []);
       setOtherProblem(data.otherProblem || '');
@@ -455,7 +560,21 @@ function RoundDetail() {
   const toggleDetailProblemCause = (cause: string) => setProblemCauses((current) =>
     current.includes(cause) ? current.filter((item) => item !== cause) : [...current, cause],
   );
-  const saveNotes = () => update.mutate({ id, data: { generalNotes: notes, problemCauses, otherProblem } as any }, { onSuccess: (next: any) => { queryClient.setQueryData(getGetRoundQueryKey(id), next); setEditing(false); } });
+  const saveRoundChanges = () => update.mutate({
+    id,
+    data: {
+      generalNotes: notes,
+      problemCauses,
+      otherProblem,
+      plannedDurationSeconds: timerMode === 'countdown' ? Math.max(1, plannedDurationSeconds) : 0,
+      actualDurationSeconds,
+    } as any,
+  }, {
+    onSuccess: (next: any) => {
+      queryClient.setQueryData(getGetRoundQueryKey(id), next);
+      setEditing(false);
+    },
+  });
 
   return (
     <div className="content">
@@ -466,8 +585,40 @@ function RoundDetail() {
           <section className="card"><div className="card-head"><div><h2>Leitura das missões</h2><span className="muted">Cada condição e subtotal calculados pelo regulamento oficial</span></div><Target size={17} color="hsl(var(--primary))" /></div><div className="card-body"><div className="round-list">{results.length ? results.map((mission: any) => <div className="round-row" key={mission.missionId}><div style={{ flex: 1 }}><div className="round-title">Missão {String(mission.missionId).padStart(2, '0')}</div><div className="grid" style={{ gap: 4, marginTop: 7 }}>{(mission.criteria || []).map((criterion: any) => <div key={criterion.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 11, color: 'hsl(var(--muted-foreground))' }}><span>{criterion.label}{criterion.quantity > 1 ? ` · ${criterion.quantity} unidades` : ''}</span><b style={{ color: criterion.points ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))' }}>{criterion.points} pts</b></div>)}</div><div className="round-meta" style={{ marginTop: 7 }}>{mission.technicalNotes || 'Nenhuma nota técnica registrada'}</div></div><div className="score" title="Subtotal oficial da missão">{mission.points ?? 0}</div><span className={`status-chip ${mission.status === 'complete' || mission.status === 'bonus' ? 'complete' : mission.status === 'not_attempted' ? '' : 'pending'}`}>{formatStatus(mission.status)}</span></div>) : <EmptyState title="Nenhum detalhe de missão" body="Este round foi salvo sem resultados individuais das missões." />}</div></div></section>
         </div>
         <aside className="grid">
-            <div className="card" style={{ padding: 21 }}><div className="card-head" style={{ padding: 0, marginBottom: 14 }}><div><h3>Erros e causas</h3><span className="muted">O que atrapalhou este round</span></div><AlertTriangle size={16} color="hsl(var(--primary))" /></div>{editing ? <><div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>{problemCauseOptions.map((option) => <button type="button" key={option.value} className={`button ${problemCauses.includes(option.value) ? 'button-primary' : 'button-ghost'}`} style={{ padding: '7px 9px' }} onClick={() => toggleDetailProblemCause(option.value)} aria-pressed={problemCauses.includes(option.value)} data-testid={`button-edit-problem-cause-${option.value}`}>{problemCauses.includes(option.value) && <Check size={12} />}{option.label}</button>)}</div><textarea className="textarea" style={{ marginTop: 12 }} value={otherProblem} onChange={(event) => setOtherProblem(event.target.value)} placeholder="Outro problema, se aplicável…" data-testid="textarea-edit-other-problem" /><textarea className="textarea" style={{ marginTop: 12 }} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Notas gerais do round…" data-testid="textarea-edit-round-notes" /><button className="button button-primary" style={{ marginTop: 10 }} onClick={saveNotes} disabled={update.isPending} data-testid="button-save-round-notes">{update.isPending ? 'Salvando…' : 'Salvar alterações'}</button></> : <>{round.problemCauses?.length || round.otherProblem ? <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{(round.problemCauses || []).map((cause: string) => <span className="status-chip pending" key={cause}>{problemCauseLabels[cause] || cause}</span>)}{round.otherProblem && <span className="status-chip pending">Outro: {round.otherProblem}</span>}</div> : <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12 }}>Nenhuma causa registrada neste round.</p>}</>}</div>
-           <div className="card" style={{ padding: 21 }}><div className="eyebrow">Resumo oficial da pontuação</div><div className="setting-row"><div><strong>Missões</strong><p>condições cumpridas</p></div><b>{round.scoreBreakdown?.missionPoints ?? 0} pts</b></div><div className="setting-row"><div><strong>Inspeção</strong><p>equipamento em uma área</p></div><b>{round.scoreBreakdown?.inspectionPoints ?? round.inspection?.points ?? 0} pts</b></div><div className="setting-row"><div><strong>Tokens restantes</strong><p>{round.tokens?.remaining ?? '—'} tokens</p></div><b>{round.scoreBreakdown?.tokenPoints ?? round.tokens?.points ?? 0} pts</b></div><div className="setting-row"><div><strong>Total calculado</strong><p>sem pontuação manual</p></div><b>{round.scoreBreakdown?.total ?? round.totalScore ?? 0} pts</b></div></div>
+          <section className="card" style={{ padding: 21 }}>
+            <div className="card-head" style={{ padding: 0, marginBottom: 14 }}>
+              <div><h3>Tempo do round</h3><span className="muted">Modo e duração registrados</span></div>
+              <TimerReset size={16} color="hsl(var(--primary))" />
+            </div>
+            {editing ? (
+              <div className="grid" style={{ gap: 12 }}>
+                <TimerModeSelector mode={timerMode} onChange={setTimerMode} idPrefix="edit-round-timer-mode" />
+                {timerMode === 'countdown' && <DurationInputs idPrefix="edit-round-planned-duration" label="Tempo da contagem regressiva" valueSeconds={plannedDurationSeconds} onChange={setPlannedDurationSeconds} minSeconds={1} />}
+                <DurationInputs idPrefix="edit-round-actual-duration" label="Tempo realizado" valueSeconds={actualDurationSeconds} onChange={setActualDurationSeconds} />
+                <small>Salve as alterações no botão ao final da edição.</small>
+              </div>
+            ) : (
+              <>
+                <div className="setting-row"><div><strong>Modo</strong><p>tipo de cronômetro</p></div><b>{round.plannedDurationSeconds === 0 ? 'Cronômetro livre' : 'Contagem regressiva'}</b></div>
+                <div className="setting-row"><div><strong>Tempo definido</strong><p>limite da contagem</p></div><b>{round.plannedDurationSeconds === 0 ? 'Sem limite' : formatDuration(round.plannedDurationSeconds ?? DEFAULT_ROUND_DURATION_SECONDS)}</b></div>
+                <div className="setting-row"><div><strong>Tempo realizado</strong><p>duração registrada</p></div><b>{formatDuration(round.actualDurationSeconds)}</b></div>
+              </>
+            )}
+          </section>
+          <section className="card" style={{ padding: 21 }}>
+            <div className="card-head" style={{ padding: 0, marginBottom: 14 }}><div><h3>Erros e causas</h3><span className="muted">O que atrapalhou este round</span></div><AlertTriangle size={16} color="hsl(var(--primary))" /></div>
+            {editing ? (
+              <>
+                <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>{problemCauseOptions.map((option) => <button type="button" key={option.value} className={`button ${problemCauses.includes(option.value) ? 'button-primary' : 'button-ghost'}`} style={{ padding: '7px 9px' }} onClick={() => toggleDetailProblemCause(option.value)} aria-pressed={problemCauses.includes(option.value)} data-testid={`button-edit-problem-cause-${option.value}`}>{problemCauses.includes(option.value) && <Check size={12} />}{option.label}</button>)}</div>
+                <textarea className="textarea" style={{ marginTop: 12 }} value={otherProblem} onChange={(event) => setOtherProblem(event.target.value)} placeholder="Outro problema, se aplicável…" data-testid="textarea-edit-other-problem" />
+                <textarea className="textarea" style={{ marginTop: 12 }} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Notas gerais do round…" data-testid="textarea-edit-round-notes" />
+              </>
+            ) : (
+              <>{round.problemCauses?.length || round.otherProblem ? <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{(round.problemCauses || []).map((cause: string) => <span className="status-chip pending" key={cause}>{problemCauseLabels[cause] || cause}</span>)}{round.otherProblem && <span className="status-chip pending">Outro: {round.otherProblem}</span>}</div> : <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12 }}>Nenhuma causa registrada neste round.</p>}</>
+            )}
+          </section>
+          <div className="card" style={{ padding: 21 }}><div className="eyebrow">Resumo oficial da pontuação</div><div className="setting-row"><div><strong>Missões</strong><p>condições cumpridas</p></div><b>{round.scoreBreakdown?.missionPoints ?? 0} pts</b></div><div className="setting-row"><div><strong>Inspeção</strong><p>equipamento em uma área</p></div><b>{round.scoreBreakdown?.inspectionPoints ?? round.inspection?.points ?? 0} pts</b></div><div className="setting-row"><div><strong>Tokens restantes</strong><p>{round.tokens?.remaining ?? '—'} tokens</p></div><b>{round.scoreBreakdown?.tokenPoints ?? round.tokens?.points ?? 0} pts</b></div><div className="setting-row"><div><strong>Total calculado</strong><p>sem pontuação manual</p></div><b>{round.scoreBreakdown?.total ?? round.totalScore ?? 0} pts</b></div></div>
+          {editing && <button className="button button-primary" style={{ width: '100%' }} onClick={saveRoundChanges} disabled={update.isPending} data-testid="button-save-round-notes">{update.isPending ? 'Salvando…' : 'Salvar alterações'}</button>}
         </aside>
       </div>
       <div className="print-only"><h1>TechEra · BIOGLOW 2026–2027</h1><p>Resumo do round · {round.event || 'Sessão de treino'} · {round.totalScore ?? 0} pontos</p></div>

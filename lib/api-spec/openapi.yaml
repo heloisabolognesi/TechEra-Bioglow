@@ -464,7 +464,7 @@ components:
         event: { type: string }
         roundNumber: { type: string }
         memberIds: { type: array, items: { type: integer } }
-        plannedDurationSeconds: { type: integer, minimum: 1, default: 150 }
+        plannedDurationSeconds: { type: integer, minimum: 0, default: 150, description: "Use 0 for a stopwatch with no time limit; positive values enable countdown mode." }
         actualDurationSeconds: { type: ["integer", "null"], minimum: 0 }
         robotVersion: { type: string }
         fieldSetup: { type: string }
@@ -486,7 +486,7 @@ components:
         event: { type: string }
         roundNumber: { type: string }
         memberIds: { type: array, items: { type: integer } }
-        plannedDurationSeconds: { type: integer, minimum: 1 }
+        plannedDurationSeconds: { type: integer, minimum: 0, description: "Use 0 for a stopwatch with no time limit; positive values enable countdown mode." }
         actualDurationSeconds: { type: ["integer", "null"], minimum: 0 }
         robotVersion: { type: string }
         fieldSetup: { type: string }
