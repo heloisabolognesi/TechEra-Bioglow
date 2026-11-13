@@ -6,6 +6,9 @@ import {
   Pause, Pencil, Play, Plus, Printer, RefreshCw, Search, Settings2, ShieldCheck,
   Sparkles, Target, TimerReset, Trash2, TrendingUp, Users,
 } from 'lucide-react';
+import {
+  Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,
+} from 'recharts';
 import { Link, Route, Switch, useLocation, useParams } from 'wouter';
 import { ErrorBoundary } from '@/components/error-boundary';
 import NotFound from '@/pages/not-found';
@@ -53,6 +56,13 @@ const statusLabels: Record<string, string> = {
   rejected: 'Rejeitada',
   unregistered: 'Não registrada',
 };
+const missionChartMetrics = [
+  { key: 'bestScore', label: 'Melhor pontuação', unit: 'pts', color: 'hsl(var(--chart-1))' },
+  { key: 'averageScore', label: 'Média de pontos', unit: 'pts', color: 'hsl(var(--chart-2))' },
+  { key: 'successRate', label: 'Taxa de sucesso', unit: '%', color: 'hsl(143 48% 38%)' },
+  { key: 'attempts', label: 'Tentativas', unit: '', color: 'hsl(var(--chart-3))' },
+] as const;
+type MissionChartMetricKey = typeof missionChartMetrics[number]['key'];
 
 function formatRoundType(value: string) {
   return roundTypeLabels[value] || value;
@@ -60,6 +70,22 @@ function formatRoundType(value: string) {
 
 function formatStatus(value: string) {
   return statusLabels[value] || value;
+}
+
+function MissionMetricsTooltip({ active, payload }: any) {
+  const mission = payload?.[0]?.payload;
+  if (!active || !mission) return null;
+  const priority = mission.priority === 'high' ? 'Alta' : mission.priority === 'medium' ? 'Média' : 'Baixa';
+  return (
+    <div className="mission-chart-tooltip">
+      <strong>M{String(mission.missionNumber).padStart(2, '0')} · {mission.missionName}</strong>
+      <span>Melhor: {mission.bestScore} pts</span>
+      <span>Média: {Number(mission.averageScore).toFixed(1)} pts</span>
+      <span>Sucesso: {mission.successRate}%</span>
+      <span>Tentativas: {mission.attempts}</span>
+      <span>Prioridade: {priority}</span>
+    </div>
+  );
 }
 
 function Shell({ children }: { children: ReactNode }) {
@@ -628,21 +654,85 @@ function RoundDetail() {
 
 function AnalyticsPage() {
   const analytics = useGetAnalytics();
+  const [chartMetric, setChartMetric] = useState<MissionChartMetricKey>('averageScore');
   if (analytics.isLoading) return <div className="content"><LoadingState /></div>;
   if (analytics.isError) return <div className="content"><ErrorState retry={() => analytics.refetch()} /></div>;
   const data: any = analytics.data;
   const trend: any[] = data?.scoreTrend || [];
   const metrics: any[] = data?.missionMetrics || [];
   const max = Math.max(...trend.map((item) => item.score), 1);
+  const selectedChartMetric = missionChartMetrics.find((metric) => metric.key === chartMetric)!;
+  const missionChartData = metrics.map((mission) => ({
+    ...mission,
+    missionLabel: `M${String(mission.missionNumber).padStart(2, '0')}`,
+    chartValue: Number(mission[chartMetric]) || 0,
+  }));
 
   return (
     <div className="content">
       <PageHeading eyebrow="BIOGLOW / evolução" title="Veja o treino evoluir." subtitle="Use os dados para escolher o próximo bloco de trabalho." action={<Link href="/rounds/new" className="button button-primary" data-testid="button-analytics-capture"><Plus size={15} />Registrar outro round</Link>} />
       <div className="grid two-col">
-        <section className="card"><div className="card-head"><div><h2>Evolução da pontuação</h2><span className="muted">Todos os rounds registrados</span></div><TrendingUp size={17} color="hsl(var(--primary))" /></div><div className="card-body">{trend.length ? <div className="bar-chart" style={{ height: 255 }}>{trend.map((item, index) => <div className="bar-col" key={`${item.date}-${index}`}><small>{item.score}</small><div className="bar" style={{ height: `${Math.max(8, item.score / max * 82)}%`, background: index % 2 ? 'hsl(var(--accent))' : 'hsl(var(--primary))' }} /><small>{new Date(item.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</small></div>)}</div> : <EmptyState title="Ainda não há curva de evolução" body="Registre vários rounds para ver como o treino está mudando a pontuação." />}</div></section>
+        <section className="card"><div className="card-head"><div><h2>Evolução da pontuação</h2><span className="muted">Verde acima de 400 pontos · roxo até 400</span></div><TrendingUp size={17} color="hsl(var(--primary))" /></div><div className="card-body">{trend.length ? <div className="bar-chart" style={{ height: 255 }}>{trend.map((item, index) => <div className="bar-col" key={`${item.date}-${index}`}><small>{item.score}</small><div className="bar" style={{ height: `${Math.max(8, item.score / max * 82)}%`, background: item.score > 400 ? 'hsl(143 48% 38%)' : 'hsl(var(--primary))' }} /><small>{new Date(item.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</small></div>)}</div> : <EmptyState title="Ainda não há curva de evolução" body="Registre vários rounds para ver como o treino está mudando a pontuação." />}</div></section>
         <section className="card"><div className="card-head"><div><h2>Histórico de problemas</h2><span className="muted">O que continua aparecendo</span></div><AlertTriangle size={17} color="hsl(var(--primary))" /></div><div className="card-body">{data?.problemHistory?.length ? data.problemHistory.map((problem: any) => <div className="focus-item" key={problem.label}><div className="focus-index" style={{ background: 'hsl(33 92% 61%/.2)', color: 'hsl(28 65% 31%)' }}>{problem.count}</div><div><strong>{problem.label}</strong><span>ocorrências registradas</span></div></div>) : <EmptyState title="Nenhum padrão de problema" body="Notas específicas de campo se transformam em padrões aqui." />}</div></section>
       </div>
-      <section className="card" style={{ marginTop: 18 }}><div className="card-head"><div><h2>Mapa de foco das missões</h2><span className="muted">Melhor, média e consistência por missão</span></div><Target size={17} color="hsl(var(--primary))" /></div><div className="table-wrap"><table><thead><tr><th>Missão</th><th>Melhor</th><th>Média</th><th>Sucesso</th><th>Tentativas</th><th>Prioridade</th></tr></thead><tbody>{metrics.length ? metrics.map((mission: any) => <tr key={mission.missionId}><td><b>M{mission.missionNumber}</b> · {mission.missionName}</td><td>{mission.bestScore}</td><td>{mission.averageScore}</td><td>{mission.successRate}%</td><td>{mission.attempts}</td><td><span className={`status-chip ${mission.priority === 'high' ? 'pending' : 'saved'}`}>{mission.priority === 'high' ? 'Alta' : mission.priority === 'medium' ? 'Média' : 'Baixa'}</span></td></tr>) : <tr><td colSpan={6}><EmptyState title="As métricas aparecem após o primeiro round" body="O desempenho por missão se torna útil quando a equipe tem alguns resultados para comparar." /></td></tr>}</tbody></table></div></section>
+      <section className="card" style={{ marginTop: 18 }}>
+        <div className="card-head"><div><h2>Mapa de foco das missões</h2><span className="muted">Compare os indicadores e mantenha a tabela completa</span></div><Target size={17} color="hsl(var(--primary))" /></div>
+        <div className="card-body">
+          <div className="mission-chart-controls" role="group" aria-label="Indicador do gráfico de missões">
+            {missionChartMetrics.map((metric) => (
+              <button
+                key={metric.key}
+                type="button"
+                className={`button ${chartMetric === metric.key ? 'button-primary' : 'button-ghost'}`}
+                onClick={() => setChartMetric(metric.key)}
+                aria-pressed={chartMetric === metric.key}
+                data-testid={`button-mission-chart-${metric.key}`}
+              >
+                {metric.label}
+              </button>
+            ))}
+          </div>
+          {missionChartData.length && metrics.some((mission) => mission.attempts > 0) ? (
+            <>
+              <div
+                className="mission-chart-wrap"
+                style={{ height: Math.max(260, Math.min(480, missionChartData.length * 30)) }}
+                data-testid="chart-mission-focus"
+                aria-label={`${selectedChartMetric.label} por missão`}
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={missionChartData} layout="vertical" margin={{ top: 5, right: 18, bottom: 5, left: 0 }}>
+                    <CartesianGrid horizontal={false} stroke="hsl(var(--border))" strokeDasharray="3 3" />
+                    <XAxis
+                      type="number"
+                      domain={[0, chartMetric === 'successRate' ? 100 : 'auto']}
+                      allowDecimals={chartMetric === 'averageScore'}
+                      tickFormatter={(value) => chartMetric === 'successRate' ? `${value}%` : String(value)}
+                      tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="missionLabel"
+                      width={44}
+                      tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip content={<MissionMetricsTooltip />} cursor={{ fill: 'hsl(var(--muted) / .5)' }} />
+                    <Bar dataKey="chartValue" name={selectedChartMetric.label} fill={selectedChartMetric.color} radius={[0, 5, 5, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <p className="mission-chart-caption">Passe o cursor sobre uma barra para ver todos os indicadores da missão. A tabela abaixo mantém os valores completos.</p>
+            </>
+          ) : (
+            <EmptyState title="Ainda não há dados para o gráfico" body="Registre ao menos uma tentativa para comparar os indicadores das missões." />
+          )}
+        </div>
+        <div className="table-wrap"><table><thead><tr><th>Missão</th><th>Melhor</th><th>Média</th><th>Sucesso</th><th>Tentativas</th><th>Prioridade</th></tr></thead><tbody>{metrics.length ? metrics.map((mission: any) => <tr key={mission.missionId}><td><b>M{mission.missionNumber}</b> · {mission.missionName}</td><td>{mission.bestScore}</td><td>{mission.averageScore}</td><td>{mission.successRate}%</td><td>{mission.attempts}</td><td><span className={`status-chip ${mission.priority === 'high' ? 'pending' : 'saved'}`}>{mission.priority === 'high' ? 'Alta' : mission.priority === 'medium' ? 'Média' : 'Baixa'}</span></td></tr>) : <tr><td colSpan={6}><EmptyState title="As métricas aparecem após o primeiro round" body="O desempenho por missão se torna útil quando a equipe tem alguns resultados para comparar." /></td></tr>}</tbody></table></div>
+      </section>
     </div>
   );
 }
