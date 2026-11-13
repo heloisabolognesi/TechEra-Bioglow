@@ -1,10 +1,12 @@
-# [Project name]
+# TechEra BIOGLOW Tracker
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Aplicativo interno da equipe TechEra para registrar rounds, acompanhar pontuação e orientar treinos da temporada BIOGLOW 2026–2027 da FIRST LEGO League Challenge.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- Preview starts the web app and API through their configured Replit workflows.
+- `pnpm --filter @workspace/bioglow-tracker run dev` — run the web app (requires `PORT` and `BASE_PATH`)
+- `pnpm --filter @workspace/api-server run dev` — build and run the API server (port 8080 in Replit)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
