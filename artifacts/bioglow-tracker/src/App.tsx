@@ -396,6 +396,7 @@ function NewRound() {
   const [problemCauses, setProblemCauses] = useState<string[]>([]);
   const [otherProblem, setOtherProblem] = useState('');
   const [results, setResults] = useState<Record<number, Record<string, any>>>({});
+  const [missionStatuses, setMissionStatuses] = useState<Record<number, 'automatic' | 'not_attempted' | 'not_executed'>>({});
   const [tokensRemaining, setTokensRemaining] = useState(6);
   const [inspectionStatus, setInspectionStatus] = useState('unregistered');
   useEffect(() => {
@@ -434,11 +435,12 @@ function NewRound() {
       all[rule.key] = { ...defaultCriterion(rule), ...(results[mission.id]?.[rule.key] || {}) };
       return all;
     }, {}) || {};
-    return { mission, criteria };
+    return { mission, criteria, status: missionStatuses[mission.id] || 'automatic' };
   });
-  const attempted = missionInputs.filter(({ mission, criteria }) =>
-    (mission.scoringRules || []).some((rule: any) => criterionIsAttempted(rule, criteria[rule.key]))).length;
-  const missionScore = missionInputs.reduce((total, { mission, criteria }) => total + clientMissionPoints(mission, criteria), 0);
+  const attempted = missionInputs.filter(({ mission, criteria, status }) =>
+    status === 'automatic' && (mission.scoringRules || []).some((rule: any) => criterionIsAttempted(rule, criteria[rule.key]))).length;
+  const missionScore = missionInputs.reduce((total, { mission, criteria, status }) =>
+    total + (status === 'automatic' ? clientMissionPoints(mission, criteria) : 0), 0);
   const inspectionPoints = inspectionStatus === 'approved' ? 20 : 0;
   const score = missionScore + inspectionPoints + tokenPointsByRemaining[tokensRemaining];
   const toggleProblemCause = (cause: string) => setProblemCauses((current) =>
@@ -450,9 +452,11 @@ function NewRound() {
       plannedDurationSeconds: timerMode === 'countdown' ? plannedDurationSeconds : 0,
       actualDurationSeconds: elapsed, robotVersion: 'Versão atual',
       fieldSetup: '', fieldConditions: '', generalNotes: notes, problemCauses, otherProblem,
-      missionResults: missionInputs.map(({ mission, criteria }) => ({
+      missionResults: missionInputs.map(({ mission, criteria, status }) => ({
         missionId: mission.id,
-        criteria: Object.values(criteria),
+        criteria: status === 'automatic'
+          ? Object.values(criteria)
+          : (mission.scoringRules || []).map((rule: any) => defaultCriterion(rule)),
         failureType: null,
         technicalNotes: '',
         confidence: 'medium',
@@ -485,19 +489,37 @@ function NewRound() {
           <section className="card capture-card">
             <div className="capture-toolbar"><div><div className="eyebrow">Resultados das missões</div><h2>O que aconteceu em campo?</h2></div><div style={{ display: 'flex', gap: 7 }}><button className={`button ${running ? 'button-danger' : 'button-lime'}`} onClick={() => setRunning((value) => !value)} disabled={timerComplete} data-testid="button-toggle-timer">{running ? <><Pause size={14} />Parar cronômetro</> : timerComplete ? 'Tempo encerrado' : <><Play size={14} />{elapsed ? 'Continuar cronômetro' : 'Iniciar cronômetro'}</>}</button><button className="button button-ghost" onClick={() => { setElapsed(0); setRunning(false); }} aria-label="Reiniciar cronômetro" data-testid="button-reset-timer"><TimerReset size={14} /></button></div></div>
             <div className="mission-grid">{list.length ? list.map((mission: any) => {
-              const criteria = missionInputs.find(({ mission: item }) => item.id === mission.id)?.criteria || {};
-              const subtotal = clientMissionPoints(mission, criteria);
-              const attemptedMission = (mission.scoringRules || []).some((rule: any) => criterionIsAttempted(rule, criteria[rule.key]));
-              return <div className={`mission-entry ${attemptedMission ? 'selected' : ''}`} key={mission.id}>
+              const missionInput = missionInputs.find(({ mission: item }) => item.id === mission.id);
+              const criteria = missionInput?.criteria || {};
+              const missionStatus = missionInput?.status || 'automatic';
+              const statusOverridesScoring = missionStatus !== 'automatic';
+              const subtotal = statusOverridesScoring ? 0 : clientMissionPoints(mission, criteria);
+              const attemptedMission = !statusOverridesScoring && (mission.scoringRules || []).some((rule: any) => criterionIsAttempted(rule, criteria[rule.key]));
+              return <div className={`mission-entry ${attemptedMission ? 'selected' : ''} ${statusOverridesScoring ? 'status-overridden' : ''}`} key={mission.id}>
                 <div className="mission-number">{String(mission.number).padStart(2, '0')}</div>
                 <div style={{ minWidth: 0, flex: 1 }}><strong>{mission.code} · {mission.name}</strong><p>{mission.description}</p>{mission.warning && <div className="notice" style={{ marginTop: 8 }}><CircleHelp size={13} />{mission.warning}</div>}
+                  <div className="mission-status-field">
+                    <label htmlFor={`mission-status-${mission.id}`}>Status da missão</label>
+                    <select
+                      id={`mission-status-${mission.id}`}
+                      className="select"
+                      value={missionStatus}
+                      onChange={(event) => setMissionStatuses((current) => ({ ...current, [mission.id]: event.target.value as 'automatic' | 'not_attempted' | 'not_executed' }))}
+                      data-testid={`select-mission-status-${mission.id}`}
+                    >
+                      <option value="automatic">Calcular pelos critérios</option>
+                      <option value="not_attempted">Não tentada</option>
+                      <option value="not_executed">Não executada</option>
+                    </select>
+                    {statusOverridesScoring && <small>Esta situação é temporária e não será salva com o round. A pontuação fica zerada.</small>}
+                  </div>
                   <div className="grid" style={{ gap: 7, marginTop: 12 }}>{(mission.scoringRules || []).map((rule: any) => {
                     const value = criteria[rule.key] || defaultCriterion(rule);
-                    const points = clientCriterionPoints(mission, rule, value, criteria);
+                    const points = statusOverridesScoring ? 0 : clientCriterionPoints(mission, rule, value, criteria);
                     return <div key={rule.key} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      {rule.inputKind === 'boolean' && <button type="button" className={`button ${value.achieved ? 'button-primary' : 'button-ghost'}`} style={{ padding: '7px 9px', flex: '1 1 280px', justifyContent: 'flex-start' }} onClick={() => setCriterion(mission.id, rule, { achieved: !value.achieved })} data-testid={`button-condition-${mission.id}-${rule.key}`}>{value.achieved ? <Check size={13} /> : <Plus size={13} />}<span>{rule.label}</span></button>}
-                      {rule.inputKind === 'quantity' && <><label style={{ flex: '1 1 280px', fontSize: 12 }}>{rule.label}<input type="number" min="0" step="1" className="input" style={{ marginTop: 5 }} value={value.quantity || ''} onChange={(event) => setCriterion(mission.id, rule, { quantity: Math.max(0, Number(event.target.value) || 0), achieved: Number(event.target.value) > 0 })} data-testid={`input-condition-${mission.id}-${rule.key}`} /></label></>}
-                      {rule.inputKind === 'select' && <label style={{ flex: '1 1 280px', fontSize: 12 }}>{rule.label}<select className="select" style={{ marginTop: 5 }} value={value.selection || 'none'} onChange={(event) => setCriterion(mission.id, rule, { selection: event.target.value, achieved: event.target.value !== 'none' })} data-testid={`select-condition-${mission.id}-${rule.key}`}>{rule.options.map((option: any) => <option key={option.value} value={option.value}>{option.label}{option.points ? ` — ${option.points} pontos` : ''}</option>)}</select></label>}
+                      {rule.inputKind === 'boolean' && <button type="button" className={`button ${value.achieved ? 'button-primary' : 'button-ghost'}`} style={{ padding: '7px 9px', flex: '1 1 280px', justifyContent: 'flex-start' }} onClick={() => setCriterion(mission.id, rule, { achieved: !value.achieved })} disabled={statusOverridesScoring} data-testid={`button-condition-${mission.id}-${rule.key}`}>{value.achieved ? <Check size={13} /> : <Plus size={13} />}<span>{rule.label}</span></button>}
+                      {rule.inputKind === 'quantity' && <><label style={{ flex: '1 1 280px', fontSize: 12 }}>{rule.label}<input type="number" min="0" step="1" className="input" style={{ marginTop: 5 }} value={value.quantity || ''} onChange={(event) => setCriterion(mission.id, rule, { quantity: Math.max(0, Number(event.target.value) || 0), achieved: Number(event.target.value) > 0 })} disabled={statusOverridesScoring} data-testid={`input-condition-${mission.id}-${rule.key}`} /></label></>}
+                      {rule.inputKind === 'select' && <label style={{ flex: '1 1 280px', fontSize: 12 }}>{rule.label}<select className="select" style={{ marginTop: 5 }} value={value.selection || 'none'} onChange={(event) => setCriterion(mission.id, rule, { selection: event.target.value, achieved: event.target.value !== 'none' })} disabled={statusOverridesScoring} data-testid={`select-condition-${mission.id}-${rule.key}`}>{rule.options.map((option: any) => <option key={option.value} value={option.value}>{option.label}{option.points ? ` — ${option.points} pontos` : ''}</option>)}</select></label>}
                       <span className="status-chip" style={{ minWidth: 78, textAlign: 'center' }}>{points} pts</span>
                     </div>;
                   })}</div>
