@@ -7,13 +7,13 @@ import {
   Sparkles, Target, TimerReset, Trash2, TrendingUp, Users,
 } from 'lucide-react';
 import {
-  Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import { Link, Route, Switch, useLocation, useParams } from 'wouter';
 import { ErrorBoundary } from '@/components/error-boundary';
 import NotFound from '@/pages/not-found';
 import {
-  getGetRoundQueryKey, getGetTeamQueryKey, getListMembersQueryKey, getListRoundsQueryKey,
+  getGetAnalyticsQueryKey, getGetRoundQueryKey, getGetTeamQueryKey, getListMembersQueryKey, getListRoundsQueryKey,
   useArchiveRound, useCreateMember, useCreateRound, useDeleteMember, useDuplicateRound,
   useGetAnalytics, useGetDashboard, useGetRound, useGetTeam, useHealthCheck,
   useListMembers, useListMissions, useListRounds, useUpdateMember, useUpdateRound,
@@ -381,6 +381,7 @@ function Overview() {
 }
 
 function NewRound() {
+  const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
   const missions = useListMissions();
   const members = useListMembers();
@@ -466,7 +467,10 @@ function NewRound() {
       officialScoreNotes: '', status: 'saved',
     } as any,
   }, {
-    onSuccess: (round: any) => setLocation(`/rounds/${round.id}`),
+    onSuccess: (round: any) => {
+      void queryClient.invalidateQueries({ queryKey: getGetAnalyticsQueryKey() });
+      setLocation(`/rounds/${round.id}`);
+    },
     onError: () => window.alert('Não foi possível salvar o round. Verifique a conexão e tente novamente.'),
   });
 
@@ -563,15 +567,24 @@ function Rounds() {
   const list: any[] = rounds.data || [];
   const archiveOne = (id: number) => {
     if (window.confirm('Arquivar este round? Ele sairá do histórico ativo.')) {
-      archive.mutate({ id }, { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListRoundsQueryKey(params) }) });
+      archive.mutate({ id }, { onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: getListRoundsQueryKey(params) });
+        void queryClient.invalidateQueries({ queryKey: getGetAnalyticsQueryKey() });
+      } });
     }
   };
+  const duplicateOne = (id: number) => duplicate.mutate({ id }, {
+    onSuccess: (copy: any) => {
+      void queryClient.invalidateQueries({ queryKey: getGetAnalyticsQueryKey() });
+      setLocation(`/rounds/${copy.id}`);
+    },
+  });
 
   return (
     <div className="content">
       <PageHeading eyebrow="BIOGLOW / histórico" title="Histórico de rounds." subtitle="O registro de treino é o registro do coaching." action={<Link href="/rounds/new" className="button button-primary" data-testid="button-history-new"><Plus size={15} />Novo round</Link>} />
       <div className="toolbar"><div style={{ position: 'relative', flex: '1 1 220px', maxWidth: 330 }}><Search size={15} style={{ position: 'absolute', top: 11, left: 11, color: 'hsl(var(--muted-foreground))' }} /><input className="input" style={{ paddingLeft: 33 }} placeholder="Buscar sessão ou integrante…" value={search} onChange={(event) => setSearch(event.target.value)} data-testid="input-round-search" /></div><select className="select" style={{ width: 150 }} value={type} onChange={(event) => setType(event.target.value)} data-testid="select-round-filter"><option value="all">Todos os tipos</option><option value="training">Treino</option><option value="simulation">Simulação</option><option value="official">Oficial</option></select><button className="button button-ghost" onClick={() => rounds.refetch()} data-testid="button-refresh-rounds"><RefreshCw size={14} />Atualizar</button></div>
-      <div className="card table-wrap">{rounds.isLoading ? <div style={{ padding: 22 }}><LoadingState /></div> : rounds.isError ? <ErrorState retry={() => rounds.refetch()} /> : list.length ? <table><thead><tr><th>Sessão</th><th>Tipo</th><th>Data</th><th>Pontuação</th><th>Cobertura</th><th>Status</th><th aria-label="Ações" /></tr></thead><tbody>{list.map((round: any) => <tr key={round.id}><td><Link href={`/rounds/${round.id}`} className="link" data-testid={`link-round-${round.id}`}>{round.event || 'Sessão de treino'}</Link><div className="round-meta">{round.members?.map((member: any) => member.nickname || member.name).join(', ') || 'Nenhum integrante'}</div></td><td><span className="status-chip">{formatRoundType(round.type)}</span></td><td>{new Date(round.dateTime).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</td><td><b style={{ color: 'hsl(var(--primary))' }}>{round.totalScore ?? 0}</b></td><td>{round.attemptedMissions ?? 0}/15</td><td><span className={`status-chip ${round.status}`}>{formatStatus(round.status)}</span></td><td><div style={{ display: 'flex', gap: 5 }}><Link href={`/rounds/${round.id}?edit=1`} className="button button-ghost" style={{ padding: 7 }} data-testid={`button-edit-round-${round.id}`}><Pencil size={13} /></Link><button className="button button-ghost" style={{ padding: 7 }} onClick={() => duplicate.mutate({ id: round.id }, { onSuccess: (copy: any) => setLocation(`/rounds/${copy.id}`) })} data-testid={`button-duplicate-round-${round.id}`}><Copy size={13} /></button><button className="button button-danger" style={{ padding: 7 }} onClick={() => archiveOne(round.id)} data-testid={`button-archive-round-${round.id}`}><Archive size={13} /></button></div></td></tr>)}</tbody></table> : <EmptyState title="Nenhum round encontrado" body={search ? 'Tente outra busca ou limpe o filtro.' : 'Registre seu primeiro round para transformar o tempo em campo em um histórico útil.'} action={!search ? <Link href="/rounds/new" className="button button-primary" data-testid="button-empty-history">Registrar um round</Link> : undefined} />}</div>
+      <div className="card table-wrap">{rounds.isLoading ? <div style={{ padding: 22 }}><LoadingState /></div> : rounds.isError ? <ErrorState retry={() => rounds.refetch()} /> : list.length ? <table><thead><tr><th>Sessão</th><th>Tipo</th><th>Data</th><th>Pontuação</th><th>Cobertura</th><th>Status</th><th aria-label="Ações" /></tr></thead><tbody>{list.map((round: any) => <tr key={round.id}><td><Link href={`/rounds/${round.id}`} className="link" data-testid={`link-round-${round.id}`}>{round.event || 'Sessão de treino'}</Link><div className="round-meta">{round.members?.map((member: any) => member.nickname || member.name).join(', ') || 'Nenhum integrante'}</div></td><td><span className="status-chip">{formatRoundType(round.type)}</span></td><td>{new Date(round.dateTime).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</td><td><b style={{ color: 'hsl(var(--primary))' }}>{round.totalScore ?? 0}</b></td><td>{round.attemptedMissions ?? 0}/15</td><td><span className={`status-chip ${round.status}`}>{formatStatus(round.status)}</span></td><td><div style={{ display: 'flex', gap: 5 }}><Link href={`/rounds/${round.id}?edit=1`} className="button button-ghost" style={{ padding: 7 }} data-testid={`button-edit-round-${round.id}`}><Pencil size={13} /></Link><button className="button button-ghost" style={{ padding: 7 }} onClick={() => duplicateOne(round.id)} data-testid={`button-duplicate-round-${round.id}`}><Copy size={13} /></button><button className="button button-danger" style={{ padding: 7 }} onClick={() => archiveOne(round.id)} data-testid={`button-archive-round-${round.id}`}><Archive size={13} /></button></div></td></tr>)}</tbody></table> : <EmptyState title="Nenhum round encontrado" body={search ? 'Tente outra busca ou limpe o filtro.' : 'Registre seu primeiro round para transformar o tempo em campo em um histórico útil.'} action={!search ? <Link href="/rounds/new" className="button button-primary" data-testid="button-empty-history">Registrar um round</Link> : undefined} />}</div>
     </div>
   );
 }
@@ -682,6 +695,11 @@ function AnalyticsPage() {
   const data: any = analytics.data;
   const trend: any[] = data?.scoreTrend || [];
   const metrics: any[] = data?.missionMetrics || [];
+  const above400Rounds = trend.filter((round) => Number(round.score) > 400).length;
+  const roundScoreDistribution = [
+    { name: 'Acima de 400 pontos', count: above400Rounds, color: 'hsl(143 48% 38%)' },
+    { name: 'Até 400 pontos', count: trend.length - above400Rounds, color: 'hsl(var(--primary))' },
+  ];
   const max = Math.max(...trend.map((item) => item.score), 1);
   const selectedChartMetric = missionChartMetrics.find((metric) => metric.key === chartMetric)!;
   const missionChartData = metrics.map((mission) => ({
@@ -694,6 +712,7 @@ function AnalyticsPage() {
     <div className="content">
       <PageHeading eyebrow="BIOGLOW / evolução" title="Veja o treino evoluir." subtitle="Use os dados para escolher o próximo bloco de trabalho." action={<Link href="/rounds/new" className="button button-primary" data-testid="button-analytics-capture"><Plus size={15} />Registrar outro round</Link>} />
       <div className="grid two-col score-evolution-layout">
+        <div style={{ display: 'grid', gap: 18, alignContent: 'start', minWidth: 0 }}>
         <section className="card score-evolution-card">
           <div className="card-head">
             <div>
@@ -748,7 +767,52 @@ function AnalyticsPage() {
             )}
           </div>
         </section>
-        <section className="card"><div className="card-head"><div><h2>Histórico de problemas</h2><span className="muted">O que continua aparecendo</span></div><AlertTriangle size={17} color="hsl(var(--primary))" /></div><div className="card-body">{data?.problemHistory?.length ? data.problemHistory.map((problem: any) => <div className="focus-item" key={problem.label}><div className="focus-index" style={{ background: 'hsl(33 92% 61%/.2)', color: 'hsl(28 65% 31%)' }}>{problem.count}</div><div><strong>{problem.label}</strong><span>ocorrências registradas</span></div></div>) : <EmptyState title="Nenhum padrão de problema" body="Notas específicas de campo se transformam em padrões aqui." />}</div></section>
+        <section className="card">
+          <div className="card-head">
+            <div><h2>Distribuição de desempenho</h2><span className="muted">Percentual de rounds por faixa de pontuação</span></div>
+            <BarChart3 size={17} color="hsl(var(--primary))" />
+          </div>
+          <div className="card-body">
+            {trend.length ? (
+              <div data-testid="chart-round-score-distribution" aria-label="Distribuição percentual de rounds acima e até 400 pontos">
+                <ResponsiveContainer width="100%" height={320}>
+                  <PieChart>
+                    <Pie
+                      data={roundScoreDistribution}
+                      dataKey="count"
+                      nameKey="name"
+                      cx="50%"
+                      cy="46%"
+                      outerRadius={88}
+                      labelLine
+                      label={({ name, percent }) => `${name === 'Acima de 400 pontos' ? 'Acima de 400' : 'Até 400'}: ${(Number(percent ?? 0) * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`}
+                    >
+                      {roundScoreDistribution.map((category) => <Cell key={category.name} fill={category.color} />)}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value) => {
+                        const count = Number(value);
+                        return [`${count} round${count === 1 ? '' : 's'} registrado${count === 1 ? '' : 's'}`, 'Quantidade'];
+                      }}
+                      labelFormatter={(label) => String(label)}
+                    />
+                    <Legend
+                      formatter={(value) => {
+                        const category = roundScoreDistribution.find((item) => item.name === value);
+                        const count = category?.count ?? 0;
+                        return `${value} · ${count} round${count === 1 ? '' : 's'}`;
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <EmptyState title="Nenhum round registrado" body="As porcentagens aparecerão após o primeiro round registrado." />
+            )}
+          </div>
+        </section>
+        </div>
+        <section className="card" style={{ alignSelf: 'start' }}><div className="card-head"><div><h2>Histórico de problemas</h2><span className="muted">O que continua aparecendo</span></div><AlertTriangle size={17} color="hsl(var(--primary))" /></div><div className="card-body">{data?.problemHistory?.length ? data.problemHistory.map((problem: any) => <div className="focus-item" key={problem.label}><div className="focus-index" style={{ background: 'hsl(33 92% 61%/.2)', color: 'hsl(28 65% 31%)' }}>{problem.count}</div><div><strong>{problem.label}</strong><span>ocorrências registradas</span></div></div>) : <EmptyState title="Nenhum padrão de problema" body="Notas específicas de campo se transformam em padrões aqui." />}</div></section>
       </div>
       <section className="card" style={{ marginTop: 18 }}>
         <div className="card-head"><div><h2>Mapa de foco das missões</h2><span className="muted">Compare os indicadores e mantenha a tabela completa</span></div><Target size={17} color="hsl(var(--primary))" /></div>

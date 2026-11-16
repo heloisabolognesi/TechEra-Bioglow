@@ -10,7 +10,7 @@ Aplicativo interno da equipe TechEra para registrar rounds, acompanhar pontuaç�
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
+- Database schema changes require explicit user authorization; do not run schema pushes without it.
 - Required env: `DATABASE_URL` — Postgres connection string
 
 ## Stack
@@ -36,7 +36,8 @@ _Describe the high-level user-facing capabilities of this app once they exist._
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Commit and push all requested changes for this app to the existing GitHub repository.
+- This project uses an external database; do not change its connection, schema, or data without explicit authorization.
 
 ## Gotchas
 
