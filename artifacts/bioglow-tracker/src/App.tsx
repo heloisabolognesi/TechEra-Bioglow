@@ -693,8 +693,61 @@ function AnalyticsPage() {
   return (
     <div className="content">
       <PageHeading eyebrow="BIOGLOW / evolução" title="Veja o treino evoluir." subtitle="Use os dados para escolher o próximo bloco de trabalho." action={<Link href="/rounds/new" className="button button-primary" data-testid="button-analytics-capture"><Plus size={15} />Registrar outro round</Link>} />
-      <div className="grid two-col">
-        <section className="card"><div className="card-head"><div><h2>Evolução da pontuação</h2><span className="muted">Verde acima de 400 pontos · roxo até 400</span></div><TrendingUp size={17} color="hsl(var(--primary))" /></div><div className="card-body">{trend.length ? <div className="bar-chart" style={{ height: 255 }}>{trend.map((item, index) => <div className="bar-col" key={`${item.date}-${index}`}><small>{item.score}</small><div className="bar" style={{ height: `${Math.max(8, item.score / max * 82)}%`, background: item.score > 400 ? 'hsl(143 48% 38%)' : 'hsl(var(--primary))' }} /><small>{new Date(item.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</small></div>)}</div> : <EmptyState title="Ainda não há curva de evolução" body="Registre vários rounds para ver como o treino está mudando a pontuação." />}</div></section>
+      <div className="grid two-col score-evolution-layout">
+        <section className="card score-evolution-card">
+          <div className="card-head">
+            <div>
+              <h2>Evolução da pontuação</h2>
+              <span className="muted">Verde acima de 400 pontos · roxo até 400</span>
+            </div>
+            <TrendingUp size={17} color="hsl(var(--primary))" />
+          </div>
+          <div className="card-body">
+            {trend.length ? (
+              <div
+                className="score-evolution-scroll"
+                role="region"
+                aria-label="Gráfico de evolução da pontuação. Deslize horizontalmente para consultar todos os registros."
+                tabIndex={0}
+              >
+                <div
+                  className="score-evolution-chart"
+                  style={{
+                    width: `${trend.length * 68 + Math.max(0, trend.length - 1) * 12 + 24}px`,
+                  }}
+                >
+                  {trend.map((item, index) => {
+                    const barHeight = Math.max(8, (item.score / max) * 82);
+                    return (
+                      <div className="score-evolution-column" key={`${item.date}-${index}`}>
+                        <div className="score-evolution-plot">
+                          <small
+                            className="score-evolution-value"
+                            style={{ bottom: `calc(${barHeight}% + 5px)` }}
+                          >
+                            {item.score}
+                          </small>
+                          <div
+                            className="score-evolution-bar"
+                            style={{
+                              height: `${barHeight}%`,
+                              background: item.score > 400 ? 'hsl(143 48% 38%)' : 'hsl(var(--primary))',
+                            }}
+                          />
+                        </div>
+                        <small className="score-evolution-date">
+                          {new Date(item.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                        </small>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <EmptyState title="Ainda não há curva de evolução" body="Registre vários rounds para ver como o treino está mudando a pontuação." />
+            )}
+          </div>
+        </section>
         <section className="card"><div className="card-head"><div><h2>Histórico de problemas</h2><span className="muted">O que continua aparecendo</span></div><AlertTriangle size={17} color="hsl(var(--primary))" /></div><div className="card-body">{data?.problemHistory?.length ? data.problemHistory.map((problem: any) => <div className="focus-item" key={problem.label}><div className="focus-index" style={{ background: 'hsl(33 92% 61%/.2)', color: 'hsl(28 65% 31%)' }}>{problem.count}</div><div><strong>{problem.label}</strong><span>ocorrências registradas</span></div></div>) : <EmptyState title="Nenhum padrão de problema" body="Notas específicas de campo se transformam em padrões aqui." />}</div></section>
       </div>
       <section className="card" style={{ marginTop: 18 }}>
